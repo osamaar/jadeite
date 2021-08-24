@@ -1,10 +1,10 @@
-#[derive(Debug)]
-pub struct Console {
+mod bus;
+mod console;
+mod constant;
+mod cpu;
+mod rom;
 
-}
-
-impl Console {
-    pub fn new() -> Self {
-        Self { }
-    }
-}
+pub use bus::*;
+pub use console::*;
+pub use cpu::*;
+pub use rom::*;
