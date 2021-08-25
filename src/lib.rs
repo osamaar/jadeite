@@ -2,9 +2,9 @@ mod bus;
 mod console;
 mod constant;
 mod cpu;
-mod rom;
+mod cart;
 
 pub use bus::*;
 pub use console::*;
 pub use cpu::*;
-pub use rom::*;
+pub use cart::*;

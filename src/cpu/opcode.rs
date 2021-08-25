@@ -23,7 +23,7 @@ pub struct Opcode {
     pub value: u8,
     pub mnemonic: &'static str,
     // pub address_mode: AddrMode,
-    pub address_mode_fn: fn(&mut Cpu)->(),
+    pub address_mode_fn: fn(&mut Cpu)->u8,
     pub op_fn: fn(&mut Cpu)->(),
     pub len: u8,
     pub cycles: u8,

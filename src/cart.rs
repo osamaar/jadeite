@@ -1,6 +1,6 @@
-use std::{fs::File, io::Read};
+use std::{convert::TryInto, fmt::{Debug, format}, fs::File, io::Read};
 
-pub struct Rom {
+pub struct Cart {
     pub prg_rom_page_count: u8,             // 4 - N x 16kb
     pub chr_rom_page_count: u8,             // 5 - N x 8kb
 
@@ -21,11 +21,14 @@ pub struct Rom {
     pub extra_bytes: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub enum Mirroring { Vertical, Horizontal }
+
+#[derive(Debug)]
 pub enum TVSystem { NTSC, PAL }
 
 
-impl Rom {
+impl Cart {
     pub fn read_file(fname: &str) -> Result<Self, ()> {
         let mut src = File::open(fname).map_err(|_| ())?;
         Self::read_from(&mut src)
@@ -44,9 +47,9 @@ impl Rom {
             _ => unreachable!()
         };
 
-        let sram_enable = (header_buf[6] & 0b0000_0010) == 1;
-        let trainer_present = (header_buf[6] & 0b0000_0100) == 1;
-        let four_screen_vram_layout = (header_buf[6] & 0b0000_1000) == 1;
+        let sram_enable = (header_buf[6] & 0b0000_0010) >> 1 == 1;
+        let trainer_present = (header_buf[6] & 0b0000_0100) >> 2 == 1;
+        let four_screen_vram_layout = (header_buf[6] & 0b0000_1000) >> 3 == 1;
         let mapper = (header_buf[6] & 0b1111_0000) & ((header_buf[7] & 0b1111_0000) << 4);
         let is_vs_system = (header_buf[7] & 0b0000_0001) == 1;
         let ram_banks = header_buf[8];
@@ -90,5 +93,47 @@ impl Rom {
             chr_rom,
             extra_bytes,
         })
+    }
+}
+
+fn vec_to_u8_4_arr(v: &Vec<u8>) -> [u8; 4] {
+    let mut mem4 = [0u8; 4];
+
+    for (dst, src) in mem4.iter_mut().zip(v.iter()) {
+        *dst = *src;
+    }
+
+    mem4
+}
+
+impl Debug for Cart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s;
+        let trainer = match &self.trainer {
+            Some(mem) => {
+                s = format!( "{} bytes of memory: {:x?}..."
+                    , mem.len(), vec_to_u8_4_arr(mem)
+                );
+                &s
+            },
+            None => "no trainer"
+        };
+
+        f.debug_struct("Cart")
+            .field("prg_rom_page_count", &self.prg_rom_page_count)
+            .field("chr_rom_page_count", &self.chr_rom_page_count)
+            .field("mirroring", &self.mirroring)
+            .field("sram_enable", &self.sram_enable)
+            .field("trainer_present", &self.trainer_present)
+            .field("four_screen_vram_layout", &self.four_screen_vram_layout)
+            .field("mapper", &self.mapper)
+            .field("is_vs_system", &self.is_vs_system)
+            .field("ram_banks", &self.ram_banks)
+            .field("tv_system", &self.tv_system)
+            .field("trainer", &trainer)
+            .field("prg_rom", &format!("PRG rom: {} bytes", self.prg_rom.len()))
+            .field("chr_rom", &format!("CHR rom: {} bytes", self.chr_rom.len()))
+            .field("extra_bytes", &format!("extra bytes: {} bytes", self.extra_bytes.len()))
+            .finish()
     }
 }

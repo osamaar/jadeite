@@ -1,8 +1,10 @@
-use jadeite::{Console, Rom};
+use jadeite::{Console, Cart};
 
 fn main() -> Result<(), ()> {
-    let _rom = Rom::read_file("resources/nestest.nes").map_err(|_| ())?;
-    let nes = Console::new();
+    let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
+    let mut nes = Console::new();
+    nes.insert_cart(&mut cart);
+    nes.cpu.reset(&mut nes.bus);
 
     // let mut count = 0;
 
@@ -15,6 +17,6 @@ fn main() -> Result<(), ()> {
 
     // println!("count: {}", count);
 
-    println!("{:#?}", nes);
+    println!("{}", nes);
     Ok(())
 }
