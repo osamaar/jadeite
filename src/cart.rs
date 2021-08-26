@@ -5,6 +5,11 @@ use std::fmt::Debug;
 use crate::mapper::{Mapper, Mapper000};
 
 pub struct Cart {
+    pub data: CartData,
+    pub mapper: Box<dyn Mapper>,            // low: 6(4:7), high: 7(4:7)
+}
+
+pub struct CartData {
     pub prg_rom_page_count: u8,             // 4 - N x 16kb
     pub chr_rom_page_count: u8,             // 5 - N x 8kb
 
@@ -13,18 +18,19 @@ pub struct Cart {
     pub trainer_present: bool,              // 6(2)
     pub four_screen_vram_layout: bool,      // 6(3)
 
-    pub mapper: Box<dyn Mapper>,            // low: 6(4:7), high: 7(4:7)
+    pub mapper_id: u16,                      // low: 6(4:7), high: 7(4:7)
 
     pub is_vs_system: bool,                 // 7(0)
     pub ram_banks: u8,                      // 8 - 0: assume 1x8kb
     pub tv_system: TVSystem,                // 9(0)
 
+    // memory
     pub trainer: Option<Vec<u8>>,
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     pub extra_bytes: Vec<u8>,
-
     pub chr_ram: Vec<u8>,
+    
 }
 
 #[derive(Debug)]
@@ -92,21 +98,24 @@ impl Cart {
         let chr_ram = vec![0u8; chr_ram_size];
 
         Ok(Self {
-            prg_rom_page_count,
-            chr_rom_page_count,
-            mirroring,
-            sram_enable,
-            trainer_present,
-            four_screen_vram_layout,
+            data: CartData {
+                prg_rom_page_count,
+                chr_rom_page_count,
+                mirroring,
+                sram_enable,
+                trainer_present,
+                four_screen_vram_layout,
+                mapper_id,
+                is_vs_system,
+                ram_banks,
+                tv_system,
+                trainer,
+                prg_rom,
+                chr_rom,
+                extra_bytes,
+                chr_ram,
+            },
             mapper,
-            is_vs_system,
-            ram_banks,
-            tv_system,
-            trainer,
-            prg_rom,
-            chr_rom,
-            extra_bytes,
-            chr_ram
         })
     }
 
@@ -115,6 +124,23 @@ impl Cart {
             0 => Box::new(Mapper000::new()),
             _ => unimplemented!()
         }
+    }
+
+    pub fn cpu_read(&self, addr: u16) -> u8 {
+        self.mapper.cpu_read(&self.data, addr)
+    }
+
+    pub fn cpu_write(&mut self, addr: u16, value: u8) {
+        self.mapper.cpu_write(&mut self.data, addr, value)
+    }
+
+
+    pub fn ppu_read(&self, addr: u16) -> u8 {
+        self.mapper.ppu_read(&self.data, addr)
+    }
+
+    pub fn ppu_write(&mut self, addr: u16, value: u8) {
+        self.mapper.ppu_write(&mut self.data, addr, value)
     }
 }
 
@@ -131,7 +157,7 @@ fn vec_to_u8_4_arr(v: &Vec<u8>) -> [u8; 4] {
 impl Debug for Cart {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s;
-        let trainer = match &self.trainer {
+        let trainer = match &self.data.trainer {
             Some(mem) => {
                 s = format!( "{} bytes of memory: {:x?}..."
                     , mem.len(), vec_to_u8_4_arr(mem)
@@ -142,20 +168,21 @@ impl Debug for Cart {
         };
 
         f.debug_struct("Cart")
-            .field("prg_rom_page_count", &self.prg_rom_page_count)
-            .field("chr_rom_page_count", &self.chr_rom_page_count)
-            .field("mirroring", &self.mirroring)
-            .field("sram_enable", &self.sram_enable)
-            .field("trainer_present", &self.trainer_present)
-            .field("four_screen_vram_layout", &self.four_screen_vram_layout)
+            .field("prg_rom_page_count", &self.data.prg_rom_page_count)
+            .field("chr_rom_page_count", &self.data.chr_rom_page_count)
+            .field("mirroring", &self.data.mirroring)
+            .field("sram_enable", &self.data.sram_enable)
+            .field("trainer_present", &self.data.trainer_present)
+            .field("four_screen_vram_layout", &self.data.four_screen_vram_layout)
             .field("mapper", &self.mapper.id())
-            .field("is_vs_system", &self.is_vs_system)
-            .field("ram_banks", &self.ram_banks)
-            .field("tv_system", &self.tv_system)
+            .field("is_vs_system", &self.data.is_vs_system)
+            .field("ram_banks", &self.data.ram_banks)
+            .field("tv_system", &self.data.tv_system)
             .field("trainer", &trainer)
-            .field("prg_rom", &format!("PRG rom: {} bytes", self.prg_rom.len()))
-            .field("chr_rom", &format!("CHR rom: {} bytes", self.chr_rom.len()))
-            .field("extra_bytes", &format!("extra bytes: {} bytes", self.extra_bytes.len()))
+            .field("prg_rom", &format!("PRG ROM: {} bytes", self.data.prg_rom.len()))
+            .field("chr_rom", &format!("CHR ROM: {} bytes", self.data.chr_rom.len()))
+            .field("extra_bytes", &format!("extra bytes: {} bytes", self.data.extra_bytes.len()))
+            .field("chr_ram", &format!("CHR RAM: {} bytes", self.data.chr_ram.len()))
             .finish()
     }
 }

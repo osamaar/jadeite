@@ -32,8 +32,9 @@ impl<'a> Console<'a> {
 impl<'a> Display for Console<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Cpu: {:#?}", self.cpu)?;
+        write!(f, ",\n")?;
         write!(f, "Bus: {:#?}", self.bus)?;
-        write!(f, "\n")?;
+        write!(f, ",\n")?;
 
         self.bus.print_ram(f)?;
 
