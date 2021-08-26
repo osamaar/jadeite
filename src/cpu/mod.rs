@@ -69,6 +69,12 @@ impl Cpu {
         bus.write(0x00, 0xff);
         bus.write(0xff, 0xff);
     }
+    
+    pub fn reset_to(&mut self, bus: &mut Bus, offset: u16) {
+        self.cycles = 8;
+        self.reg.P.interrupt = true;
+        self.reg.PC = offset;
+    }
 
     // Addressing Modes
     fn Accum(cpu: &mut Self) -> u8 { unimplemented!() }

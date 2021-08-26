@@ -4,7 +4,7 @@ fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
     let mut nes = Console::new();
     nes.insert_cart(&mut cart);
-    nes.cpu.reset(&mut nes.bus);
+    nes.reset_to(0xc000);
 
     // let mut count = 0;
 
