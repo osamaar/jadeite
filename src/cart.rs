@@ -1,4 +1,6 @@
-use std::{convert::TryInto, fmt::{Debug, format}, fs::File, io::Read};
+use std::io::Read;
+use std::fs::File;
+use std::fmt::Debug;
 
 use crate::mapper::{Mapper, Mapper000};
 

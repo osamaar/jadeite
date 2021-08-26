@@ -1,6 +1,6 @@
 // #![feature(trace_macros)]
 // trace_macros!(true);
-#![allow(unused_variables)]
+#![allow(unused_variables, dead_code)]
 #![allow(non_snake_case)]
 
 mod opcode;
