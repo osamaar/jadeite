@@ -35,7 +35,7 @@ impl<'a> Display for Console<'a> {
         write!(f, "Bus: {:#?}", self.bus)?;
         write!(f, "\n")?;
 
-        self.bus.print_ram(f);
+        self.bus.print_ram(f)?;
 
         Ok(())
     }

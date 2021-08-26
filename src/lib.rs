@@ -3,6 +3,7 @@ mod console;
 mod constant;
 mod cpu;
 mod cart;
+mod mapper;
 
 pub use bus::*;
 pub use console::*;

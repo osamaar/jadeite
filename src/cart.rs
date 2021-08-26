@@ -1,5 +1,7 @@
 use std::{convert::TryInto, fmt::{Debug, format}, fs::File, io::Read};
 
+use crate::mapper::{Mapper, Mapper000};
+
 pub struct Cart {
     pub prg_rom_page_count: u8,             // 4 - N x 16kb
     pub chr_rom_page_count: u8,             // 5 - N x 8kb
@@ -9,7 +11,7 @@ pub struct Cart {
     pub trainer_present: bool,              // 6(2)
     pub four_screen_vram_layout: bool,      // 6(3)
 
-    pub mapper: u8,                         // low: 6(4:7), high: 7(4:7)
+    pub mapper: Box<dyn Mapper>,            // low: 6(4:7), high: 7(4:7)
 
     pub is_vs_system: bool,                 // 7(0)
     pub ram_banks: u8,                      // 8 - 0: assume 1x8kb
@@ -19,6 +21,8 @@ pub struct Cart {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     pub extra_bytes: Vec<u8>,
+
+    pub chr_ram: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -50,7 +54,12 @@ impl Cart {
         let sram_enable = (header_buf[6] & 0b0000_0010) >> 1 == 1;
         let trainer_present = (header_buf[6] & 0b0000_0100) >> 2 == 1;
         let four_screen_vram_layout = (header_buf[6] & 0b0000_1000) >> 3 == 1;
-        let mapper = (header_buf[6] & 0b1111_0000) & ((header_buf[7] & 0b1111_0000) << 4);
+
+        let mapper_id_lo = (header_buf[6] & 0b1111_0000) as u16;
+        let mapper_id_hi = (header_buf[7] & 0b1111_0000) as u16;
+        let mapper_id = mapper_id_lo & (mapper_id_hi << 4);
+        let mapper = Self::create_mapper(mapper_id);
+
         let is_vs_system = (header_buf[7] & 0b0000_0001) == 1;
         let ram_banks = header_buf[8];
         let tv_system = match header_buf[9] & 0b0000_0001 {
@@ -70,12 +79,15 @@ impl Cart {
 
         let mut prg_rom: Vec<u8> = vec![0u8; prg_rom_page_count as usize*16*1024];
         src.read_exact(&mut prg_rom).map_err(|_| ())?;
-
+        
         let mut chr_rom: Vec<u8> = vec![0u8; chr_rom_page_count as usize*8*1024];
         src.read_exact(&mut chr_rom).map_err(|_| ())?;
 
         let mut extra_bytes = Vec::new();
         src.read_to_end(&mut extra_bytes).map_err(|_| ())?;
+
+        let chr_ram_size = 0x1fff*(1-chr_rom_page_count) as usize;
+        let chr_ram = vec![0u8; chr_ram_size];
 
         Ok(Self {
             prg_rom_page_count,
@@ -92,7 +104,15 @@ impl Cart {
             prg_rom,
             chr_rom,
             extra_bytes,
+            chr_ram
         })
+    }
+
+    fn create_mapper(id: u16) -> Box<dyn Mapper> {
+        match id {
+            0 => Box::new(Mapper000::new()),
+            _ => unimplemented!()
+        }
     }
 }
 
@@ -126,7 +146,7 @@ impl Debug for Cart {
             .field("sram_enable", &self.sram_enable)
             .field("trainer_present", &self.trainer_present)
             .field("four_screen_vram_layout", &self.four_screen_vram_layout)
-            .field("mapper", &self.mapper)
+            .field("mapper", &self.mapper.id())
             .field("is_vs_system", &self.is_vs_system)
             .field("ram_banks", &self.ram_banks)
             .field("tv_system", &self.tv_system)
