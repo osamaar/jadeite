@@ -6,7 +6,7 @@
 mod opcode;
 mod opcode_values;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use crate::Bus;
 use self::opcode::Opcode;
@@ -191,15 +191,15 @@ pub struct RegStatus {
     pub negative: bool,
 }
 
-impl From<RegStatus> for u8 {
-    fn from(p: RegStatus) -> Self {
-        ((p.carry     as u8) << 0) &
-        ((p.zero      as u8) << 1) &
-        ((p.interrupt as u8) << 2) &
-        ((p.decimal   as u8) << 3) &
-        ((p.brk       as u8) << 4) &
-        ((p.unused    as u8) << 5) &
-        ((p.overflow  as u8) << 6) &
+impl From<&RegStatus> for u8 {
+    fn from(p: &RegStatus) -> Self {
+        ((p.carry     as u8) << 0) |
+        ((p.zero      as u8) << 1) |
+        ((p.interrupt as u8) << 2) |
+        ((p.decimal   as u8) << 3) |
+        ((p.brk       as u8) << 4) |
+        ((p.unused    as u8) << 5) |
+        ((p.overflow  as u8) << 6) |
         ((p.negative  as u8) << 7)
     }
 }
@@ -226,6 +226,49 @@ impl Debug for Cpu {
             .field("cycles", &self.cycles)
             .field("opcode_table", &"opcode_table")
             .finish()
+    }
+}
+
+impl Display for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const W: usize = 4;
+        const WL: usize = W + 2;
+        const WS: usize = W - 2;
+
+        write!(f, "Registers:\n")?;
+        write!(
+            f, "{:>2}{:>WL$}{:>WL$}{:>WL$}{:>WL$}{:>WL$}\n",
+            "A", "Y", "X", "PC", "S", "P",
+        )?;
+
+        write!(f, "{}{:>02X}", "", self.reg.A)?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.Y)?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.X)?;
+        write!(f, "{:WS$}{:>04X}", "", self.reg.PC)?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.S)?;
+        write!(f, "{:W$}{:>02X}", "", u8::from(&self.reg.P))?;
+
+        write!(f, "\n")?;
+        write!(f, "\n")?;
+
+        write!(f, "Status Flags:\n")?;
+        write!(f, "N V _ B D I Z C\n")?;
+
+        write!(
+            f, "{} {} {} {} {} {} {} {}\n",
+            self.reg.P.negative as u8,
+            self.reg.P.overflow as u8,
+            self.reg.P.unused as u8,
+            self.reg.P.brk as u8,
+            self.reg.P.decimal as u8,
+            self.reg.P.interrupt as u8,
+            self.reg.P.zero as u8,
+            self.reg.P.negative as u8,
+        )?;
+
+        write!(f, "\n")?;
+
+        Ok(())
     }
 }
 
