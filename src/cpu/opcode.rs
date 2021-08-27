@@ -17,7 +17,7 @@ pub enum AddrMode {
     IdxZPX(u8), IdxZPY(u8),
     IdxAbsX(u16), IdxAbsY(u16),
     Implied,
-    Relative(u8),
+    Relative(u8, u16),
     IdxIndX(u8),
     IndIdxY(u8),
     Indirect(u16)
@@ -37,7 +37,7 @@ impl Default for OpData {
             pc: Default::default(),
             opcode: Default::default(),
             mnemonic: Default::default(),
-            addr_mode: AddrMode::Implied
+            addr_mode: AddrMode::Implied,
         }
     }
 }
@@ -70,13 +70,16 @@ impl Display for OpData {
             AddrMode::Implied => {
                 write!(f, "{0:2} {0:2}", "")?;
             },
-            AddrMode::Relative(_) => todo!(),
+            AddrMode::Relative(a, b) => {
+                write!(f, "{:02X} {:2}", a, "")?;
+                write!(s, "${:02X}", b)?;
+            },
             AddrMode::IdxIndX(_) => todo!(),
             AddrMode::IndIdxY(_) => todo!(),
             AddrMode::Indirect(_) => todo!(),
         }
 
-        write!(f, "{:>8} {}", self.mnemonic, s)?;
+        write!(f, "{:4}{} {:<6}", "", self.mnemonic, s)?;
 
 
         Ok(())

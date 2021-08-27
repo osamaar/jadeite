@@ -4,7 +4,7 @@
 mod opcode;
 mod opcode_values;
 
-use std::fmt::{Debug, Display};
+use std::{fmt::{Debug, Display}, num::Wrapping};
 
 use crate::Bus;
 use self::opcode::{AddrMode, OpData, Opcode};
@@ -16,8 +16,7 @@ pub struct Cpu {
 
     clock_count: usize,
     fetched: u8,
-    addr_abs: u16,
-    addr_rel: u16,
+    addr_target: u16,
     this_op: OpData,
 
     opcode_table: Box<[Opcode]>,
@@ -31,8 +30,7 @@ impl Cpu {
             cycles: 0,
             ops: 0,
             fetched: 0,
-            addr_abs: 0,
-            addr_rel: 0,
+            addr_target: 0,
             clock_count: 0,
             this_op: Default::default(),
         }
@@ -45,32 +43,36 @@ impl Cpu {
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        self.clock_count += 1;
         self.cycles -= 1;
-        if self.cycles > 0 { return; }
-        self.process_instruction(bus);
+
+        if self.cycles == 0 {
+            self.process_instruction(bus);
+        }
+
+        self.clock_count += 1;
 
     }
 
     fn process_instruction(&mut self, bus: &mut Bus) {
         // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
+        self.reg.P.unused = true;
 
         self.this_op.pc = self.reg.PC;
 
         let byte = self.pc_advance(bus);
-        let op = self.opcode_table[byte as usize];
 
+        let op = self.opcode_table[byte as usize];
         self.this_op.opcode = op.value;
         self.this_op.mnemonic = op.mnemonic;
+        println!("{} P:{:02x}  CYC:{:_>6}", self.this_op, u8::from(&self.reg.P), self.clock_count);
 
+        self.cycles = op.cycles;
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
 
-        // println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
-        println!("{}", self.this_op);
-
-        self.cycles = op.cycles;
         self.ops += 1;
+
+        // println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -127,13 +129,13 @@ impl Cpu {
     fn Absolute(cpu: &mut Self, bus: &mut Bus) {
         let lo = cpu.pc_advance(bus) as u16;
         let hi = cpu.pc_advance(bus) as u16;
-        cpu.addr_abs = (hi << 8) + lo;
-        cpu.this_op.addr_mode = AddrMode::Absolute(cpu.addr_abs);
+        cpu.addr_target = (hi << 8) + lo;
+        cpu.this_op.addr_mode = AddrMode::Absolute(cpu.addr_target);
     }
 
     fn ZP(cpu: &mut Self, bus: &mut Bus) {
-        cpu.addr_abs = cpu.pc_advance(bus) as u16;
-        cpu.this_op.addr_mode = AddrMode::ZP(cpu.addr_abs as u8);
+        cpu.addr_target = cpu.pc_advance(bus) as u16;
+        cpu.this_op.addr_mode = AddrMode::ZP(cpu.addr_target as u8);
     }
 
     fn IdxZPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
@@ -145,7 +147,20 @@ impl Cpu {
         cpu.this_op.addr_mode = AddrMode::Implied;
     }
 
-    fn Relative(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Relative(cpu: &mut Self, bus: &mut Bus) {
+        // let addr_rel = ((cpu.pc_advance(bus) as i8) as i16) as u16;
+
+        // Casting from a smaller integer to a larger integer (e.g. u8 -> u32) will
+        //     zero-extend if the source is unsigned
+        //     sign-extend if the source is signed
+        // See: https://doc.rust-lang.org/reference/expressions/operator-expr.html?highlight=cast#type-cast-expressions
+        let operand = cpu.pc_advance(bus);
+        let addr_rel = (operand as i8) as u16;
+        let temp = Wrapping(cpu.reg.PC) + Wrapping(addr_rel);
+        cpu.addr_target = temp.0;
+        cpu.this_op.addr_mode = AddrMode::Relative(operand, cpu.addr_target);
+    }
+
     fn IdxIndX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IndIdxY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn Indirect(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
@@ -156,7 +171,24 @@ impl Cpu {
     fn AND(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ASL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn BCC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BCS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn BCS(cpu: &mut Self, bus: &mut Bus) {
+        if !cpu.reg.P.carry { return; }
+
+        // Jump happened
+        cpu.cycles += 1;
+
+        let page_pc = cpu.reg.PC & 0xff00;
+        let page_target = cpu.addr_target & 0xff00;
+
+        if page_pc != page_target {
+            // Page borders crossed
+            cpu.cycles += 1;
+        }
+
+        cpu.reg.PC = cpu.addr_target;
+    }
+
     fn BEQ(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn BIT(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn BMI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -165,7 +197,11 @@ impl Cpu {
     fn BRK(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn BVC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn BVS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn CLC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn CLC(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.carry = false;
+    }
+
     fn CLD(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn CLI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn CLV(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -181,7 +217,7 @@ impl Cpu {
     fn INY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
     fn JMP(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.PC = cpu.addr_abs;
+        cpu.reg.PC = cpu.addr_target;
     }
 
     fn JSR(cpu: &mut Self, bus: &mut Bus) {
@@ -192,13 +228,14 @@ impl Cpu {
         cpu.push_stack(bus, hi);
 
         // Jump
-        cpu.reg.PC = cpu.addr_abs;
+        cpu.reg.PC = cpu.addr_target;
     }
 
     fn LDA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
     fn LDX(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.X = cpu.fetched;
+        cpu.reg.P.zero = cpu.fetched == 0;
     }
 
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -219,13 +256,17 @@ impl Cpu {
     fn RTI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn RTS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn SBC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn SEC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn SEC(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.carry = true;
+    }
+
     fn SED(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn SEI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn STA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
     fn STX(cpu: &mut Self, bus: &mut Bus) {
-        bus.write(cpu.addr_abs, cpu.reg.X);
+        bus.write(cpu.addr_target, cpu.reg.X);
     }
 
     fn STY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -341,7 +382,7 @@ impl Display for Cpu {
         write!(f, "N V _ B D I Z C\n")?;
 
         write!(
-            f, "{} {} {} {} {} {} {} {}\n",
+            f, "{} {} {} {} {} {} {} {}  ({:2x})\n",
             self.reg.P.negative as u8,
             self.reg.P.overflow as u8,
             self.reg.P.unused as u8,
@@ -349,7 +390,8 @@ impl Display for Cpu {
             self.reg.P.decimal as u8,
             self.reg.P.interrupt as u8,
             self.reg.P.zero as u8,
-            self.reg.P.negative as u8,
+            self.reg.P.carry as u8,
+            u8::from(&self.reg.P),
         )?;
         write!(f, "{:_<40}\n", "")?;
 
