@@ -56,8 +56,8 @@ impl Cpu {
 
         println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
 
-        (op.address_mode_fn)(self);
-        (op.op_fn)(self);
+        (op.address_mode_fn)(self, bus);
+        (op.op_fn)(self, bus);
 
     }
     
@@ -82,79 +82,90 @@ impl Cpu {
     }
 
     // Addressing Modes
-    fn Accum(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn Imm(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn Absolute(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn ZP(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IdxZPX(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IdxZPY(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IdxAbsX(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IdxAbsY(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn Implied(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn Relative(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IdxIndX(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn IndIdxY(cpu: &mut Self) -> u8 { unimplemented!() }
-    fn Indirect(cpu: &mut Self) -> u8 { unimplemented!() }
+    fn Accum(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Imm(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+
+    fn Absolute(cpu: &mut Self, bus: &mut Bus) {
+        let lo = cpu.pc_advance(bus) as u16;
+        let hi = cpu.pc_advance(bus) as u16;
+        cpu.addr_abs = (hi << 8) + lo;
+    }
+
+    fn ZP(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxZPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxZPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxAbsX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxAbsY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Implied(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Relative(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxIndX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IndIdxY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Indirect(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
 
     // Instructions
-    fn XXX(cpu: &mut Self) { unimplemented!(); }
-    fn ADC(cpu: &mut Self) { unimplemented!(); }
-    fn AND(cpu: &mut Self) { unimplemented!(); }
-    fn ASL(cpu: &mut Self) { unimplemented!(); }
-    fn BCC(cpu: &mut Self) { unimplemented!(); }
-    fn BCS(cpu: &mut Self) { unimplemented!(); }
-    fn BEQ(cpu: &mut Self) { unimplemented!(); }
-    fn BIT(cpu: &mut Self) { unimplemented!(); }
-    fn BMI(cpu: &mut Self) { unimplemented!(); }
-    fn BNE(cpu: &mut Self) { unimplemented!(); }
-    fn BPL(cpu: &mut Self) { unimplemented!(); }
-    fn BRK(cpu: &mut Self) { unimplemented!(); }
-    fn BVC(cpu: &mut Self) { unimplemented!(); }
-    fn BVS(cpu: &mut Self) { unimplemented!(); }
-    fn CLC(cpu: &mut Self) { unimplemented!(); }
-    fn CLD(cpu: &mut Self) { unimplemented!(); }
-    fn CLI(cpu: &mut Self) { unimplemented!(); }
-    fn CLV(cpu: &mut Self) { unimplemented!(); }
-    fn CMP(cpu: &mut Self) { unimplemented!(); }
-    fn CPX(cpu: &mut Self) { unimplemented!(); }
-    fn CPY(cpu: &mut Self) { unimplemented!(); }
-    fn DEC(cpu: &mut Self) { unimplemented!(); }
-    fn DEX(cpu: &mut Self) { unimplemented!(); }
-    fn DEY(cpu: &mut Self) { unimplemented!(); }
-    fn EOR(cpu: &mut Self) { unimplemented!(); }
-    fn INC(cpu: &mut Self) { unimplemented!(); }
-    fn INX(cpu: &mut Self) { unimplemented!(); }
-    fn INY(cpu: &mut Self) { unimplemented!(); }
-    fn JMP(cpu: &mut Self) { unimplemented!(); }
-    fn JSR(cpu: &mut Self) { unimplemented!(); }
-    fn LDA(cpu: &mut Self) { unimplemented!(); }
-    fn LDX(cpu: &mut Self) { unimplemented!(); }
-    fn LDY(cpu: &mut Self) { unimplemented!(); }
-    fn LSR(cpu: &mut Self) { unimplemented!(); }
-    fn NP(cpu: &mut Self) { unimplemented!(); }
-    fn OR(cpu: &mut Self) { unimplemented!(); }
-    fn ORA(cpu: &mut Self) { unimplemented!(); }
-    fn PHA(cpu: &mut Self) { unimplemented!(); }
-    fn PHP(cpu: &mut Self) { unimplemented!(); }
-    fn PLA(cpu: &mut Self) { unimplemented!(); }
-    fn PLP(cpu: &mut Self) { unimplemented!(); }
-    fn ROL(cpu: &mut Self) { unimplemented!(); }
-    fn ROR(cpu: &mut Self) { unimplemented!(); }
-    fn RTI(cpu: &mut Self) { unimplemented!(); }
-    fn RTS(cpu: &mut Self) { unimplemented!(); }
-    fn SBC(cpu: &mut Self) { unimplemented!(); }
-    fn SEC(cpu: &mut Self) { unimplemented!(); }
-    fn SED(cpu: &mut Self) { unimplemented!(); }
-    fn SEI(cpu: &mut Self) { unimplemented!(); }
-    fn STA(cpu: &mut Self) { unimplemented!(); }
-    fn STX(cpu: &mut Self) { unimplemented!(); }
-    fn STY(cpu: &mut Self) { unimplemented!(); }
-    fn TAX(cpu: &mut Self) { unimplemented!(); }
-    fn TAY(cpu: &mut Self) { unimplemented!(); }
-    fn TSX(cpu: &mut Self) { unimplemented!(); }
-    fn TXA(cpu: &mut Self) { unimplemented!(); }
-    fn TXS(cpu: &mut Self) { unimplemented!(); }
-    fn TYA(cpu: &mut Self) { unimplemented!(); }
+    fn XXX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ADC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn AND(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ASL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BCC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BCS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BEQ(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BIT(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BMI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BNE(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BPL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BRK(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BVC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BVS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CLC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CLD(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CLI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CLV(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CMP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn DEC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn DEX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn DEY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn EOR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn INC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn INX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn INY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn JMP(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.PC = cpu.addr_abs;
+        cpu.cycles = 3;
+    }
+
+    fn JSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LDA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LDX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn NP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ORA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn PHA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn PHP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn PLA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn PLP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ROL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ROR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn RTI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn RTS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SBC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SEC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SED(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SEI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn STA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn STX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn STY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TAX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TAY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TSX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TXA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TXS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn TYA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 }
 
 

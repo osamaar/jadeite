@@ -1,3 +1,4 @@
+use crate::Bus;
 use super::opcode_values::add_all_ops;
 use super::Cpu;
 
@@ -23,8 +24,8 @@ pub struct Opcode {
     pub value: u8,
     pub mnemonic: &'static str,
     // pub address_mode: AddrMode,
-    pub address_mode_fn: fn(&mut Cpu)->u8,
-    pub op_fn: fn(&mut Cpu)->(),
+    pub address_mode_fn: fn(&mut Cpu, &mut Bus)->(),
+    pub op_fn: fn(&mut Cpu, &mut Bus)->(),
     pub len: u8,
     pub cycles: u8,
     pub cycles_added: u8,
