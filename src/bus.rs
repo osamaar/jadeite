@@ -19,18 +19,22 @@ impl <'a> Bus <'a> {
         self.cart = Some(cart);
     }
 
-    pub fn read(&self, _addr: u16) -> u8 {
-        0
+    pub fn read(&self, addr: u16) -> u8 {
+        let cart = self.cart.as_ref().unwrap();
+        cart.cpu_read(addr)
     }
 
-    pub fn write(&mut self, addr: u16, val: u8) {
+    pub fn write(&mut self, addr: u16, value: u8) {
+        let cart = self.cart.as_mut().unwrap();
+
         match addr {
             0x00..=0xff => {
-                self.ram[addr as usize] = val;
+                self.ram[addr as usize] = value;
             },
-            _ => {
-                todo!("Implement full memory map");
-            }
+            0x8000..=0xffff => {
+                cart.cpu_write(addr, value);
+            },
+            _ => unimplemented!()
         }
     }
 

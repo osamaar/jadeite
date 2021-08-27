@@ -27,15 +27,23 @@ impl<'a> Console<'a> {
     pub fn reset_to(&mut self, offset: u16) {
         self.cpu.reset_to(&mut self.bus, offset);
     }
+
+    pub fn step(&mut self) {
+        self.cpu.step(&mut self.bus)
+    }
+
+    pub fn next(&mut self) {
+        self.cpu.next(&mut self.bus)
+    }
 }
 
 impl<'a> Display for Console<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Cpu: {}", self.cpu)?;
         // write!(f, "Bus: {:#?}", self.bus)?;
         // write!(f, ",\n")?;
 
         self.bus.print_ram(f)?;
+        write!(f, "{}", self.cpu)?;
 
         Ok(())
     }

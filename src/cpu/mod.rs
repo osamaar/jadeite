@@ -6,7 +6,7 @@
 mod opcode;
 mod opcode_values;
 
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Write};
 
 use crate::Bus;
 use self::opcode::Opcode;
@@ -46,11 +46,21 @@ impl Cpu {
         self.clock_count += 1;
         self.cycles -= 1;
         if self.cycles > 0 { return; }
+        self.process_instruction(bus);
+
+    }
+
+    fn process_instruction(&mut self, bus: &mut Bus) {
+        print!("{:#06x}: ", self.reg.PC);
 
         let byte = self.pc_advance(bus);
         let op = self.opcode_table[byte as usize];
+
+        println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
+
         (op.address_mode_fn)(self);
         (op.op_fn)(self);
+
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -61,13 +71,10 @@ impl Cpu {
     }
     
     pub fn reset(&mut self, bus: &mut Bus) {
-        self.cycles = 8;
-        self.reg.P.interrupt = true;
         let pc_lo= bus.read(0xfffc) as u16;
         let pc_hi = bus.read(0xfffd) as u16;
-        self.reg.PC = (pc_hi << 8) & pc_lo;
-        bus.write(0x00, 0xff);
-        bus.write(0xff, 0xff);
+        let pc = (pc_hi << 8) | pc_lo;
+        self.reset_to(bus, pc);
     }
     
     pub fn reset_to(&mut self, bus: &mut Bus, offset: u16) {
@@ -235,6 +242,8 @@ impl Display for Cpu {
         const WL: usize = W + 2;
         const WS: usize = W - 2;
 
+        write!(f, "{:_<40}\n", "")?;
+        write!(f, "clock: {}\n", self.clock_count)?;
         write!(f, "Registers:\n")?;
         write!(
             f, "{:>2}{:>WL$}{:>WL$}{:>WL$}{:>WL$}{:>WL$}\n",
@@ -249,13 +258,12 @@ impl Display for Cpu {
         write!(f, "{:W$}{:>02X}", "", u8::from(&self.reg.P))?;
 
         write!(f, "\n")?;
-        write!(f, "\n")?;
 
         write!(f, "Status Flags:\n")?;
         write!(f, "N V _ B D I Z C\n")?;
 
         write!(
-            f, "{} {} {} {} {} {} {} {}\n",
+            f, "{} {} {} {} {} {} {} {}",
             self.reg.P.negative as u8,
             self.reg.P.overflow as u8,
             self.reg.P.unused as u8,
@@ -265,8 +273,6 @@ impl Display for Cpu {
             self.reg.P.zero as u8,
             self.reg.P.negative as u8,
         )?;
-
-        write!(f, "\n")?;
 
         Ok(())
     }
