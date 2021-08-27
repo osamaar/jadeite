@@ -129,7 +129,11 @@ impl Cpu {
     fn IdxZPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxAbsX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxAbsY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn Implied(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+
+    fn Implied(_cpu: &mut Self, _bus: &mut Bus) {
+
+    }
+
     fn Relative(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxIndX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IndIdxY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
@@ -188,7 +192,11 @@ impl Cpu {
 
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn NOP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn NOP(_cpu: &mut Self, _bus: &mut Bus) {
+
+    }
+
     fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ORA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn PHA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
