@@ -11,10 +11,10 @@ fn main() -> Result<(), ()> {
 
     loop {
         nes.next();
-        let mut s = String::new();
-        nes.bus.print_page(&mut s, 0x0000).unwrap();
-        println!("{}", s);
-        print!("{}", nes.cpu);
+        // let mut s = String::new();
+        // nes.bus.print_page(&mut s, 0x0000).unwrap();
+        // println!("{}", s);
+        // print!("{}", nes.cpu);
     }
 
     // Ok(())

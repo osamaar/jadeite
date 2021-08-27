@@ -84,6 +84,19 @@ impl Cpu {
         self.reg.PC = offset;
     }
 
+    fn push_stack(&mut self, bus: &mut Bus, value: u8) {
+        self.reg.S -= 1;
+        let addr = 0x0100 | self.reg.S as u16;
+        bus.write(addr, value);
+    }
+
+    fn pop_stack(&mut self, bus: &mut Bus) -> u8 {
+        let addr = 0x0100 | self.reg.S as u16;
+        let byte = bus.read(addr);
+        self.reg.S += 1;
+        byte
+    }
+
     // Addressing Modes
     fn Accum(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
 
@@ -145,7 +158,17 @@ impl Cpu {
         cpu.reg.PC = cpu.addr_abs;
     }
 
-    fn JSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn JSR(cpu: &mut Self, bus: &mut Bus) {
+        // Push PC (already advanced by Cpu::Absolute)
+        let lo = (cpu.reg.PC & 0xff) as u8;
+        let hi = ((cpu.reg.PC >> 8) & 0xff) as u8;
+        cpu.push_stack(bus, lo);
+        cpu.push_stack(bus, hi);
+
+        // Jump
+        cpu.reg.PC = cpu.addr_abs;
+    }
+
     fn LDA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
     fn LDX(cpu: &mut Self, bus: &mut Bus) {
