@@ -7,7 +7,7 @@ mod opcode_values;
 use std::fmt::{Debug, Display};
 
 use crate::Bus;
-use self::opcode::Opcode;
+use self::opcode::{AddrMode, OpData, Opcode};
 
 pub struct Cpu {
     pub reg: Reg,
@@ -18,6 +18,7 @@ pub struct Cpu {
     fetched: u8,
     addr_abs: u16,
     addr_rel: u16,
+    this_op: OpData,
 
     opcode_table: Box<[Opcode]>,
 }
@@ -33,6 +34,7 @@ impl Cpu {
             addr_abs: 0,
             addr_rel: 0,
             clock_count: 0,
+            this_op: Default::default(),
         }
     }
 
@@ -51,15 +53,21 @@ impl Cpu {
     }
 
     fn process_instruction(&mut self, bus: &mut Bus) {
-        print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
+        // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
+
+        self.this_op.pc = self.reg.PC;
 
         let byte = self.pc_advance(bus);
         let op = self.opcode_table[byte as usize];
 
-        println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
+        self.this_op.opcode = op.value;
+        self.this_op.mnemonic = op.mnemonic;
 
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
+
+        // println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
+        println!("{}", self.this_op);
 
         self.cycles = op.cycles;
         self.ops += 1;
@@ -113,16 +121,19 @@ impl Cpu {
 
     fn Imm(cpu: &mut Self, bus: &mut Bus) {
         cpu.fetched = cpu.pc_advance(bus);
+        cpu.this_op.addr_mode = AddrMode::Imm(cpu.fetched);
     }
 
     fn Absolute(cpu: &mut Self, bus: &mut Bus) {
         let lo = cpu.pc_advance(bus) as u16;
         let hi = cpu.pc_advance(bus) as u16;
         cpu.addr_abs = (hi << 8) + lo;
+        cpu.this_op.addr_mode = AddrMode::Absolute(cpu.addr_abs);
     }
 
     fn ZP(cpu: &mut Self, bus: &mut Bus) {
         cpu.addr_abs = cpu.pc_advance(bus) as u16;
+        cpu.this_op.addr_mode = AddrMode::ZP(cpu.addr_abs as u8);
     }
 
     fn IdxZPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
@@ -130,8 +141,8 @@ impl Cpu {
     fn IdxAbsX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxAbsY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
 
-    fn Implied(_cpu: &mut Self, _bus: &mut Bus) {
-
+    fn Implied(cpu: &mut Self, _bus: &mut Bus) {
+        cpu.this_op.addr_mode = AddrMode::Implied;
     }
 
     fn Relative(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
