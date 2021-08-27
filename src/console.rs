@@ -42,7 +42,9 @@ impl<'a> Display for Console<'a> {
         // write!(f, "Bus: {:#?}", self.bus)?;
         // write!(f, ",\n")?;
 
-        self.bus.print_ram(f)?;
+        self.bus.print_page(f, 0x00000)?;
+        println!();
+        self.bus.print_page(f, 0x0c000)?;
         write!(f, "{}", self.cpu)?;
 
         Ok(())

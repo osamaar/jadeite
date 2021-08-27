@@ -38,7 +38,8 @@ impl <'a> Bus <'a> {
         }
     }
 
-    pub fn print_ram<T: Write>(&self, target: &mut T) -> std::fmt::Result {
+    /// Print a full memory page to target.
+    pub fn print_page<T: Write>(&self, target: &mut T, base: u16) -> std::fmt::Result {
         write!(target, "{:6}", " ")?;
 
         for col in 0..0x10 {
@@ -49,9 +50,10 @@ impl <'a> Bus <'a> {
         write!(target, "\n")?;
 
         for row in 0..0x10 {
-            write!(target, "{:#06X}", row*0x10)?;
+            write!(target, "{:#06X}", base+row*0x10)?;
             for col in 0..0x10 {
-                write!(target, "{:4}{:02x}", " ", self.ram[row*0x10+col])?;
+                let addr = base + row*0x10 + col;
+                write!(target, "{:4}{:02x}", " ", self.read(addr))?;
             }
             write!(target, "\n")?;
         }
