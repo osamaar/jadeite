@@ -59,6 +59,7 @@ impl Cpu {
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
 
+        self.cycles = op.cycles;
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -134,7 +135,6 @@ impl Cpu {
 
     fn JMP(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.PC = cpu.addr_abs;
-        cpu.cycles = 3;
     }
 
     fn JSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
