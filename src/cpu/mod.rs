@@ -84,7 +84,10 @@ impl Cpu {
 
     // Addressing Modes
     fn Accum(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn Imm(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+
+    fn Imm(cpu: &mut Self, bus: &mut Bus) {
+        cpu.fetched = cpu.pc_advance(bus);
+    }
 
     fn Absolute(cpu: &mut Self, bus: &mut Bus) {
         let lo = cpu.pc_advance(bus) as u16;
@@ -139,7 +142,11 @@ impl Cpu {
 
     fn JSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn LDA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn LDX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn LDX(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.X = cpu.fetched;
+    }
+
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn NP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
