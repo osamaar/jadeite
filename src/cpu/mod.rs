@@ -12,8 +12,9 @@ use self::opcode::Opcode;
 pub struct Cpu {
     pub reg: Reg,
     pub cycles: u8,
+    pub ops: usize,
 
-    clock_count: u32,
+    clock_count: usize,
     fetched: u8,
     addr_abs: u16,
     addr_rel: u16,
@@ -27,6 +28,7 @@ impl Cpu {
             reg: Default::default(),
             opcode_table: opcode::create_opcode_table(),
             cycles: 0,
+            ops: 0,
             fetched: 0,
             addr_abs: 0,
             addr_rel: 0,
@@ -49,7 +51,7 @@ impl Cpu {
     }
 
     fn process_instruction(&mut self, bus: &mut Bus) {
-        print!("{:#06x}: ", self.reg.PC);
+        print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
 
         let byte = self.pc_advance(bus);
         let op = self.opcode_table[byte as usize];
@@ -60,6 +62,7 @@ impl Cpu {
         (op.op_fn)(self, bus);
 
         self.cycles = op.cycles;
+        self.ops += 1;
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -82,6 +85,14 @@ impl Cpu {
         self.cycles = 8;
         self.reg.P.interrupt = true;
         self.reg.PC = offset;
+
+        // Cpu starts up in 8 cycles,
+        // sets SP to 00,
+        // then accesses and decreases SP 3 times
+        // 00 => FF => FE => FD
+        // leaving SP = 0xFD
+        // See: https://www.pagetable.com/?p=410
+        self.reg.S = 0xFD;
     }
 
     fn push_stack(&mut self, bus: &mut Bus, value: u8) {
@@ -177,7 +188,7 @@ impl Cpu {
 
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn NP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn NOP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ORA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn PHA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }

@@ -258,7 +258,7 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xe7,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xe8,  INX,  Implied , 1, 2, 0);
     add_op!(table, 0xe9,  SBC,  Imm     , 2, 2, 0);
-    add_op!(table, 0xea,  NP ,  Implied , 1, 2, 0);
+    add_op!(table, 0xea,  NOP ,  Implied , 1, 2, 0);
     add_op!(table, 0xeb,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xec,  CPX,  Absolute, 3, 4, 0);
     add_op!(table, 0xed,  SBC,  Absolute, 3, 4, 0);

@@ -23,12 +23,16 @@ impl <'a> Bus <'a> {
         let cart = self.cart.as_ref().unwrap();
 
         match addr {
-            0x00..=0xff => {
+            // RAM
+            0x00..=0x7ff => {
                 self.ram[addr as usize]
             },
+
+            // Cartridge
             0x8000..=0xffff => {
                 cart.cpu_read(addr)
             },
+
             _ => unimplemented!()
         }
     }
@@ -37,12 +41,16 @@ impl <'a> Bus <'a> {
         let cart = self.cart.as_mut().unwrap();
 
         match addr {
-            0x00..=0xff => {
+            // RAM
+            0x00..=0x7ff => {
                 self.ram[addr as usize] = value;
             },
+
+            // Cartridge
             0x8000..=0xffff => {
                 cart.cpu_write(addr, value);
             },
+
             _ => unimplemented!()
         }
     }
