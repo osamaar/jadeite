@@ -63,9 +63,11 @@ impl Cpu {
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
-        loop {
+        let mut remaining = self.cycles;
+
+        while remaining > 0 {
             self.step(bus);
-            if self.cycles == 0 { break; }
+            remaining -= 1;
         }
     }
     
@@ -95,7 +97,10 @@ impl Cpu {
         cpu.addr_abs = (hi << 8) + lo;
     }
 
-    fn ZP(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn ZP(cpu: &mut Self, bus: &mut Bus) {
+        cpu.addr_abs = cpu.pc_advance(bus) as u16;
+    }
+
     fn IdxZPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxZPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
     fn IdxAbsX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
@@ -165,7 +170,11 @@ impl Cpu {
     fn SED(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn SEI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn STA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn STX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn STX(cpu: &mut Self, bus: &mut Bus) {
+        bus.write(cpu.addr_abs, cpu.reg.X);
+    }
+
     fn STY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn TAX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn TAY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -279,7 +288,7 @@ impl Display for Cpu {
         write!(f, "N V _ B D I Z C\n")?;
 
         write!(
-            f, "{} {} {} {} {} {} {} {}",
+            f, "{} {} {} {} {} {} {} {}\n",
             self.reg.P.negative as u8,
             self.reg.P.overflow as u8,
             self.reg.P.unused as u8,
@@ -289,6 +298,7 @@ impl Display for Cpu {
             self.reg.P.zero as u8,
             self.reg.P.negative as u8,
         )?;
+        write!(f, "{:_<40}\n", "")?;
 
         Ok(())
     }

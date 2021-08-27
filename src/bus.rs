@@ -10,7 +10,7 @@ pub struct Bus <'a> {
 impl <'a> Bus <'a> {
     pub fn new() -> Self {
         Self {
-            ram: vec![0u8; 0x800].into_boxed_slice(),
+            ram: vec![0xffu8; 0x800].into_boxed_slice(),
             cart: None,
         }
     }
@@ -21,7 +21,16 @@ impl <'a> Bus <'a> {
 
     pub fn read(&self, addr: u16) -> u8 {
         let cart = self.cart.as_ref().unwrap();
-        cart.cpu_read(addr)
+
+        match addr {
+            0x00..=0xff => {
+                self.ram[addr as usize]
+            },
+            0x8000..=0xffff => {
+                cart.cpu_read(addr)
+            },
+            _ => unimplemented!()
+        }
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {

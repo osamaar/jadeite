@@ -7,11 +7,13 @@ fn main() -> Result<(), ()> {
     nes.reset_to(0xc000);
     // nes.reset();
 
-    println!("{}", nes);
-    println!();
+    // println!("{}", nes);
 
     loop {
         nes.next();
+        let mut s = String::new();
+        nes.bus.print_page(&mut s, 0x0000).unwrap();
+        println!("{}", s);
         print!("{}", nes.cpu);
     }
 
