@@ -1,5 +1,3 @@
-#![feature(format_args_capture)]
-
 mod bus;
 mod console;
 mod constant;

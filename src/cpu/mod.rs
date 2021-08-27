@@ -247,15 +247,15 @@ impl Display for Cpu {
         write!(f, "Registers:\n")?;
         write!(
             f, "{:>2}{:>WL$}{:>WL$}{:>WL$}{:>WL$}{:>WL$}\n",
-            "A", "Y", "X", "PC", "S", "P",
+            "A", "Y", "X", "PC", "S", "P", WL=WL
         )?;
 
         write!(f, "{}{:>02X}", "", self.reg.A)?;
-        write!(f, "{:W$}{:>02X}", "", self.reg.Y)?;
-        write!(f, "{:W$}{:>02X}", "", self.reg.X)?;
-        write!(f, "{:WS$}{:>04X}", "", self.reg.PC)?;
-        write!(f, "{:W$}{:>02X}", "", self.reg.S)?;
-        write!(f, "{:W$}{:>02X}", "", u8::from(&self.reg.P))?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.Y, W=W)?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.X, W=W)?;
+        write!(f, "{:WS$}{:>04X}", "", self.reg.PC, WS=WS)?;
+        write!(f, "{:W$}{:>02X}", "", self.reg.S, W=W)?;
+        write!(f, "{:W$}{:>02X}", "", u8::from(&self.reg.P), W=W)?;
 
         write!(f, "\n")?;
 
