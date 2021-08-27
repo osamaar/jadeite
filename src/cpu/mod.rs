@@ -62,17 +62,22 @@ impl Cpu {
         let byte = self.pc_advance(bus);
 
         let op = self.opcode_table[byte as usize];
-        self.this_op.opcode = op.value;
-        self.this_op.mnemonic = op.mnemonic;
-        println!("{} P:{:02x}  CYC:{:_>6}", self.this_op, u8::from(&self.reg.P), self.clock_count);
+        let clock_count = self.clock_count;
+        let registers = self.reg;
 
         self.cycles = op.cycles;
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
 
-        self.ops += 1;
-
         // println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
+        self.this_op.opcode = op.value;
+        self.this_op.mnemonic = op.mnemonic;
+        println!(
+            "{}{:6}{}  CYC:{:_>6}",
+            self.this_op, "", registers, clock_count
+        );
+
+        self.ops += 1;
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -109,13 +114,30 @@ impl Cpu {
         self.reg.S -= 1;
         let addr = 0x0100 | self.reg.S as u16;
         bus.write(addr, value);
+        // println!("Stack push: {:#04X} =>Addr:{:04X}", value, addr);
     }
 
     fn pop_stack(&mut self, bus: &mut Bus) -> u8 {
         let addr = 0x0100 | self.reg.S as u16;
         let byte = bus.read(addr);
         self.reg.S += 1;
+        // println!("Stack Pop: {:#04X} <=Addr:{:04X}", byte, addr);
         byte
+    }
+
+    fn branch(cpu: &mut Self, bus: &mut Bus) {
+        // Jump happened
+        cpu.cycles += 1;
+
+        let page_pc = cpu.reg.PC & 0xff00;
+        let page_target = cpu.addr_target & 0xff00;
+
+        if page_pc != page_target {
+            // Page borders crossed
+            cpu.cycles += 1;
+        }
+
+        cpu.reg.PC = cpu.addr_target;
     }
 
     // Addressing Modes
@@ -170,33 +192,60 @@ impl Cpu {
     fn ADC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn AND(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ASL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BCC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
-    fn BCS(cpu: &mut Self, bus: &mut Bus) {
-        if !cpu.reg.P.carry { return; }
-
-        // Jump happened
-        cpu.cycles += 1;
-
-        let page_pc = cpu.reg.PC & 0xff00;
-        let page_target = cpu.addr_target & 0xff00;
-
-        if page_pc != page_target {
-            // Page borders crossed
-            cpu.cycles += 1;
+    fn BCC(cpu: &mut Self, bus: &mut Bus) {
+        if !cpu.reg.P.carry {
+            Self::branch(cpu, bus);
         }
-
-        cpu.reg.PC = cpu.addr_target;
     }
 
-    fn BEQ(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BIT(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BCS(cpu: &mut Self, bus: &mut Bus) {
+        if cpu.reg.P.carry {
+            Self::branch(cpu, bus);
+        }
+    }
+
+    fn BEQ(cpu: &mut Self, bus: &mut Bus) {
+        if cpu.reg.P.zero {
+            Self::branch(cpu, bus);
+        }
+    }
+
+    fn BIT(cpu: &mut Self, bus: &mut Bus) {
+        // N = M(7), V = M(6), Z = A & M
+        let m = bus.read(cpu.addr_target);
+        cpu.reg.P.negative = (m & 0x80) != 0;
+        cpu.reg.P.overflow = (m & 0x40) != 0;
+        cpu.reg.P.zero = (cpu.reg.A & m) == 0;
+    }
+
     fn BMI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BNE(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BPL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn BNE(cpu: &mut Self, bus: &mut Bus) {
+        if !cpu.reg.P.zero {
+            Self::branch(cpu, bus);
+        }
+    }
+
+    fn BPL(cpu: &mut Self, bus: &mut Bus) {
+        if !cpu.reg.P.negative {
+            Self::branch(cpu, bus);
+        }
+    }
+
     fn BRK(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BVC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn BVS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn BVC(cpu: &mut Self, bus: &mut Bus) {
+        if !cpu.reg.P.overflow {
+            Self::branch(cpu, bus);
+        }
+    }
+
+    fn BVS(cpu: &mut Self, bus: &mut Bus) {
+        if cpu.reg.P.overflow {
+            Self::branch(cpu, bus);
+        }
+    }
 
     fn CLC(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.carry = false;
@@ -231,11 +280,16 @@ impl Cpu {
         cpu.reg.PC = cpu.addr_target;
     }
 
-    fn LDA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LDA(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.A = cpu.fetched;
+        cpu.reg.P.zero = cpu.fetched == 0;
+        cpu.reg.P.negative = (cpu.fetched & 0x80) != 0;
+    }
 
     fn LDX(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.X = cpu.fetched;
         cpu.reg.P.zero = cpu.fetched == 0;
+        cpu.reg.P.negative = (cpu.fetched & 0x80) != 0;
     }
 
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -248,22 +302,49 @@ impl Cpu {
     fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ORA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn PHA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn PHP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn PLA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn PHP(cpu: &mut Self, bus: &mut Bus) {
+        let mut status = cpu.reg.P;
+        status.brk = true;
+        status.unused = true;
+        cpu.push_stack(bus, (&status).into());
+    }
+
+    fn PLA(cpu: &mut Self, bus: &mut Bus) {
+        let byte = cpu.pop_stack(bus);
+        cpu.reg.A = byte;
+        if byte == 0 { cpu.reg.P.zero = true; }
+        if (byte & 0x80) == 1 { cpu.reg.P.negative = true; }
+    }
+
     fn PLP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ROL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ROR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn RTI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn RTS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    fn RTS(cpu: &mut Self, bus: &mut Bus) {
+        let hi = cpu.pop_stack(bus) as u16;
+        let lo = cpu.pop_stack(bus) as u16;
+        cpu.reg.PC = (hi << 8) | lo;
+    }
+
     fn SBC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
     fn SEC(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.carry = true;
     }
 
-    fn SED(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn SEI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn STA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SED(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.decimal = true;
+    }
+
+    fn SEI(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.interrupt = true;
+    }
+
+    fn STA(cpu: &mut Self, bus: &mut Bus) {
+        bus.write(cpu.addr_target, cpu.reg.A);
+    }
 
     fn STX(cpu: &mut Self, bus: &mut Bus) {
         bus.write(cpu.addr_target, cpu.reg.X);
@@ -280,7 +361,7 @@ impl Cpu {
 
 
 #[allow(non_snake_case)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Reg {
     /// Accumulator
     pub A: u8,
@@ -296,8 +377,19 @@ pub struct Reg {
     pub P: RegStatus,
 }
 
+impl Display for Reg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "A:{:02X}", self.A)?;
+        write!(f, " X:{:02X}", self.X)?;
+        write!(f, " Y:{:02X}", self.Y)?;
+        write!(f, " P:{:02X}", u8::from(&self.P))?;
+        write!(f, " SP:{:02X}", self.S)?;
+        Ok(())
+    }
+}
+
 #[allow(non_snake_case)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct RegStatus {
     /// `C`: Bit 0
     pub carry: bool,

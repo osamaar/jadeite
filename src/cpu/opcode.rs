@@ -24,6 +24,7 @@ pub enum AddrMode {
 }
 
 /// For logging
+#[derive(Clone, Copy)]
 pub(super) struct OpData {
     pub pc: u16,
     pub opcode: u8,
