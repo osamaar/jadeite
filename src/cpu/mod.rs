@@ -1,12 +1,10 @@
-// #![feature(trace_macros)]
-// trace_macros!(true);
 #![allow(unused_variables, dead_code)]
 #![allow(non_snake_case)]
 
 mod opcode;
 mod opcode_values;
 
-use std::fmt::{Debug, Display, Write};
+use std::fmt::{Debug, Display};
 
 use crate::Bus;
 use self::opcode::Opcode;
