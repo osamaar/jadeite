@@ -15,7 +15,6 @@ pub struct Cpu {
     pub ops: usize,
 
     clock_count: usize,
-    fetched: u8,
     addr_target: u16,
     this_op: OpData,
 
@@ -29,7 +28,6 @@ impl Cpu {
             opcode_table: opcode::create_opcode_table(),
             cycles: 0,
             ops: 0,
-            fetched: 0,
             addr_target: 0,
             clock_count: 0,
             this_op: Default::default(),
@@ -62,6 +60,8 @@ impl Cpu {
         let byte = self.pc_advance(bus);
 
         let op = self.opcode_table[byte as usize];
+        self.this_op.opcode = op.value;
+        self.this_op.mnemonic = op.mnemonic;
         let clock_count = self.clock_count;
         let registers = self.reg;
 
@@ -69,9 +69,6 @@ impl Cpu {
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
 
-        // println!("[{}] [{:#04x}] [{}]", op.len, op.value, op.mnemonic);
-        self.this_op.opcode = op.value;
-        self.this_op.mnemonic = op.mnemonic;
         println!(
             "{}{:6}{}  CYC:{:_>6}",
             self.this_op, "", registers, clock_count
@@ -125,6 +122,44 @@ impl Cpu {
         byte
     }
 
+    /// Centralized op target access. All ops can use this to avoid switching
+    /// addressing logic based on current instruction's addressing mode.
+    fn fetch(&mut self, bus: &mut Bus) -> u8 {
+        match self.this_op.addr_mode {
+            AddrMode::Accum => todo!(),
+            AddrMode::Imm(byte) => byte,
+            AddrMode::Absolute(_) => todo!(),
+            AddrMode::ZP(addr) => bus.read(addr as u16),
+            AddrMode::IdxZPX(_) => todo!(),
+            AddrMode::IdxZPY(_) => todo!(),
+            AddrMode::IdxAbsX(_) => todo!(),
+            AddrMode::IdxAbsY(_) => todo!(),
+            AddrMode::Implied => todo!(),
+            AddrMode::Relative(_, _) => todo!(),
+            AddrMode::IdxIndX(_) => todo!(),
+            AddrMode::IndIdxY(_) => todo!(),
+            AddrMode::Indirect(_) => todo!(),
+        }
+    }
+
+    fn store(&mut self, value: u8, bus: &mut Bus) {
+        match self.this_op.addr_mode {
+            AddrMode::Accum => todo!(),
+            AddrMode::Imm(_) => todo!(),
+            AddrMode::Absolute(_) => todo!(),
+            AddrMode::ZP(addr) => bus.write(addr as u16, value),
+            AddrMode::IdxZPX(_) => todo!(),
+            AddrMode::IdxZPY(_) => todo!(),
+            AddrMode::IdxAbsX(_) => todo!(),
+            AddrMode::IdxAbsY(_) => todo!(),
+            AddrMode::Implied => todo!(),
+            AddrMode::Relative(_, _) => todo!(),
+            AddrMode::IdxIndX(_) => todo!(),
+            AddrMode::IndIdxY(_) => todo!(),
+            AddrMode::Indirect(_) => todo!(),
+        }
+    }
+
     fn branch(cpu: &mut Self, bus: &mut Bus) {
         // Jump happened
         cpu.cycles += 1;
@@ -144,8 +179,8 @@ impl Cpu {
     fn Accum(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
 
     fn Imm(cpu: &mut Self, bus: &mut Bus) {
-        cpu.fetched = cpu.pc_advance(bus);
-        cpu.this_op.addr_mode = AddrMode::Imm(cpu.fetched);
+        let fetched = cpu.pc_advance(bus);
+        cpu.this_op.addr_mode = AddrMode::Imm(fetched);
     }
 
     fn Absolute(cpu: &mut Self, bus: &mut Bus) {
@@ -213,10 +248,12 @@ impl Cpu {
 
     fn BIT(cpu: &mut Self, bus: &mut Bus) {
         // N = M(7), V = M(6), Z = A & M
-        let m = bus.read(cpu.addr_target);
+        // let m = bus.read(cpu.addr_target);
+        let m = cpu.fetch(bus);
         cpu.reg.P.negative = (m & 0x80) != 0;
         cpu.reg.P.overflow = (m & 0x40) != 0;
         cpu.reg.P.zero = (cpu.reg.A & m) == 0;
+        cpu.store(m, bus);
     }
 
     fn BMI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
@@ -281,15 +318,17 @@ impl Cpu {
     }
 
     fn LDA(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.A = cpu.fetched;
-        cpu.reg.P.zero = cpu.fetched == 0;
-        cpu.reg.P.negative = (cpu.fetched & 0x80) != 0;
+        let fetched = cpu.fetch(bus);
+        cpu.reg.A = fetched;
+        cpu.reg.P.zero = fetched == 0;
+        cpu.reg.P.negative = (fetched & 0x80) != 0;
     }
 
     fn LDX(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.X = cpu.fetched;
-        cpu.reg.P.zero = cpu.fetched == 0;
-        cpu.reg.P.negative = (cpu.fetched & 0x80) != 0;
+        let fetched = cpu.fetch(bus);
+        cpu.reg.X = fetched;
+        cpu.reg.P.zero = fetched == 0;
+        cpu.reg.P.negative = (fetched & 0x80) != 0;
     }
 
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
