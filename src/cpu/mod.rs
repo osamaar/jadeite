@@ -162,317 +162,316 @@ impl Cpu {
         }
     }
 
-    fn branch(cpu: &mut Self, bus: &mut Bus) {
+    fn branch(&mut self, bus: &mut Bus) {
         // Jump happened
-        cpu.cycles += 1;
+        self.cycles += 1;
 
-        let page_pc = cpu.reg.PC & 0xff00;
-        let page_target = cpu.addr_target & 0xff00;
+        let page_pc = self.reg.PC & 0xff00;
+        let page_target = self.addr_target & 0xff00;
 
         if page_pc != page_target {
             // Page borders crossed
-            cpu.cycles += 1;
+            self.cycles += 1;
         }
 
-        cpu.reg.PC = cpu.addr_target;
+        self.reg.PC = self.addr_target;
     }
 
     // Addressing Modes
-    fn Accum(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn Accum(&mut self, bus: &mut Bus) { unimplemented!() }
 
-    fn Imm(cpu: &mut Self, bus: &mut Bus) {
-        let fetched = cpu.pc_advance(bus);
-        cpu.this_op.addr_mode = AddrMode::Imm(fetched);
+    fn Imm(&mut self, bus: &mut Bus) {
+        let fetched = self.pc_advance(bus);
+        self.this_op.addr_mode = AddrMode::Imm(fetched);
     }
 
-    fn Absolute(cpu: &mut Self, bus: &mut Bus) {
-        let lo = cpu.pc_advance(bus) as u16;
-        let hi = cpu.pc_advance(bus) as u16;
-        cpu.addr_target = (hi << 8) + lo;
-        cpu.this_op.addr_mode = AddrMode::Absolute(cpu.addr_target);
+    fn Absolute(&mut self, bus: &mut Bus) {
+        let lo = self.pc_advance(bus) as u16;
+        let hi = self.pc_advance(bus) as u16;
+        self.addr_target = (hi << 8) + lo;
+        self.this_op.addr_mode = AddrMode::Absolute(self.addr_target);
     }
 
-    fn ZP(cpu: &mut Self, bus: &mut Bus) {
-        cpu.addr_target = cpu.pc_advance(bus) as u16;
-        cpu.this_op.addr_mode = AddrMode::ZP(cpu.addr_target as u8);
+    fn ZP(&mut self, bus: &mut Bus) {
+        self.addr_target = self.pc_advance(bus) as u16;
+        self.this_op.addr_mode = AddrMode::ZP(self.addr_target as u8);
     }
 
-    fn IdxZPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn IdxZPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn IdxAbsX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn IdxAbsY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxZPX(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn IdxZPY(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn IdxAbsX(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn IdxAbsY(&mut self, bus: &mut Bus) { unimplemented!() }
 
-    fn Implied(cpu: &mut Self, _bus: &mut Bus) {
-        cpu.this_op.addr_mode = AddrMode::Implied;
+    fn Implied(&mut self, _bus: &mut Bus) {
+        self.this_op.addr_mode = AddrMode::Implied;
     }
 
-    fn Relative(cpu: &mut Self, bus: &mut Bus) {
+    fn Relative(&mut self, bus: &mut Bus) {
         // let addr_rel = ((cpu.pc_advance(bus) as i8) as i16) as u16;
 
         // Casting from a smaller integer to a larger integer (e.g. u8 -> u32) will
         //     zero-extend if the source is unsigned
         //     sign-extend if the source is signed
         // See: https://doc.rust-lang.org/reference/expressions/operator-expr.html?highlight=cast#type-cast-expressions
-        let operand = cpu.pc_advance(bus);
+        let operand = self.pc_advance(bus);
         let addr_rel = (operand as i8) as u16;
-        let temp = Wrapping(cpu.reg.PC) + Wrapping(addr_rel);
-        cpu.addr_target = temp.0;
-        cpu.this_op.addr_mode = AddrMode::Relative(operand, cpu.addr_target);
+        let temp = Wrapping(self.reg.PC) + Wrapping(addr_rel);
+        self.addr_target = temp.0;
+        self.this_op.addr_mode = AddrMode::Relative(operand, self.addr_target);
     }
 
-    fn IdxIndX(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn IndIdxY(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
-    fn Indirect(cpu: &mut Self, bus: &mut Bus) { unimplemented!() }
+    fn IdxIndX(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn IndIdxY(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn Indirect(&mut self, bus: &mut Bus) { unimplemented!() }
 
     // Instructions
-    fn XXX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn ADC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn XXX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn ADC(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Logical AND
-    fn AND(cpu: &mut Self, bus: &mut Bus) {
-        let m = cpu.fetch(bus);
-        cpu.reg.A = cpu.reg.A & m;
-        cpu.reg.P.zero = cpu.reg.A == 0;
-        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    fn AND(&mut self, bus: &mut Bus) {
+        let m = self.fetch(bus);
+        self.reg.A = self.reg.A & m;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
-    fn ASL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ASL(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Branch if Carry Clear
-    fn BCC(cpu: &mut Self, bus: &mut Bus) {
-        if !cpu.reg.P.carry {
-            Self::branch(cpu, bus);
+    fn BCC(&mut self, bus: &mut Bus) {
+        if !self.reg.P.carry {
+            self.branch(bus);
         }
     }
 
     /// Branch if Carry Set
-    fn BCS(cpu: &mut Self, bus: &mut Bus) {
-        if cpu.reg.P.carry {
-            Self::branch(cpu, bus);
+    fn BCS(&mut self, bus: &mut Bus) {
+        if self.reg.P.carry {
+            self.branch(bus);
         }
     }
 
     /// Branch if Equal
-    fn BEQ(cpu: &mut Self, bus: &mut Bus) {
-        if cpu.reg.P.zero {
-            Self::branch(cpu, bus);
+    fn BEQ(&mut self, bus: &mut Bus) {
+        if self.reg.P.zero {
+            self.branch(bus);
         }
     }
 
     /// Bit Test
-    fn BIT(cpu: &mut Self, bus: &mut Bus) {
+    fn BIT(&mut self, bus: &mut Bus) {
         // N = M(7), V = M(6), Z = A & M
-        // let m = bus.read(cpu.addr_target);
-        let m = cpu.fetch(bus);
-        cpu.reg.P.negative = (m & 0x80) != 0;
-        cpu.reg.P.overflow = (m & 0x40) != 0;
-        cpu.reg.P.zero = (cpu.reg.A & m) == 0;
-        cpu.store(m, bus);
+        let m = self.fetch(bus);
+        self.reg.P.negative = (m & 0x80) != 0;
+        self.reg.P.overflow = (m & 0x40) != 0;
+        self.reg.P.zero = (self.reg.A & m) == 0;
+        self.store(m, bus);
     }
 
     /// Branch if Minus
-    fn BMI(cpu: &mut Self, bus: &mut Bus) {
-        if cpu.reg.P.negative {
-            Self::branch(cpu, bus);
+    fn BMI(&mut self, bus: &mut Bus) {
+        if self.reg.P.negative {
+            self.branch(bus);
         }
     }
 
     /// Branch if Not Equal
-    fn BNE(cpu: &mut Self, bus: &mut Bus) {
-        if !cpu.reg.P.zero {
-            Self::branch(cpu, bus);
+    fn BNE(&mut self, bus: &mut Bus) {
+        if !self.reg.P.zero {
+            self.branch(bus);
         }
     }
 
     /// Branch if Positive
-    fn BPL(cpu: &mut Self, bus: &mut Bus) {
-        if !cpu.reg.P.negative {
-            Self::branch(cpu, bus);
+    fn BPL(&mut self, bus: &mut Bus) {
+        if !self.reg.P.negative {
+            self.branch(bus);
         }
     }
 
-    fn BRK(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn BRK(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Branch if Overflow Clear
-    fn BVC(cpu: &mut Self, bus: &mut Bus) {
-        if !cpu.reg.P.overflow {
-            Self::branch(cpu, bus);
+    fn BVC(&mut self, bus: &mut Bus) {
+        if !self.reg.P.overflow {
+            self.branch(bus);
         }
     }
 
     /// Branch if Overflow Set
-    fn BVS(cpu: &mut Self, bus: &mut Bus) {
-        if cpu.reg.P.overflow {
-            Self::branch(cpu, bus);
+    fn BVS(&mut self, bus: &mut Bus) {
+        if self.reg.P.overflow {
+            self.branch(bus);
         }
     }
 
     /// Clear Carry Flag
-    fn CLC(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.carry = false;
+    fn CLC(&mut self, bus: &mut Bus) {
+        self.reg.P.carry = false;
     }
 
     /// Clear Decimal Flag
-    fn CLD(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.decimal = false;
+    fn CLD(&mut self, bus: &mut Bus) {
+        self.reg.P.decimal = false;
     }
 
-    fn CLI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CLI(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Clear Overflow Flag
-    fn CLV(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.overflow = false;
+    fn CLV(&mut self, bus: &mut Bus) {
+        self.reg.P.overflow = false;
     }
 
     /// Compare
-    fn CMP(cpu: &mut Self, bus: &mut Bus) {
-        let a = cpu.reg.A;
-        let m = cpu.fetch(bus);
-        cpu.reg.P.carry = a >= m;
-        cpu.reg.P.zero = a == m;
-        cpu.reg.P.negative = a < m;
+    fn CMP(&mut self, bus: &mut Bus) {
+        let a = self.reg.A;
+        let m = self.fetch(bus);
+        self.reg.P.carry = a >= m;
+        self.reg.P.zero = a == m;
+        self.reg.P.negative = a < m;
     }
 
-    fn CPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn CPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn DEC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn DEX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn DEY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn CPX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn CPY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn DEC(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn DEX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn DEY(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Exclusive OR
-    fn EOR(cpu: &mut Self, bus: &mut Bus) {
-        let m = cpu.fetch(bus);
-        cpu.reg.A = cpu.reg.A ^ m;
-        cpu.reg.P.zero = cpu.reg.A == 0;
-        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    fn EOR(&mut self, bus: &mut Bus) {
+        let m = self.fetch(bus);
+        self.reg.A = self.reg.A ^ m;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
-    fn INC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn INX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn INY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn INC(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn INX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn INY(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Jump
-    fn JMP(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.PC = cpu.addr_target;
+    fn JMP(&mut self, bus: &mut Bus) {
+        self.reg.PC = self.addr_target;
     }
 
     /// Jump to Subroutine
-    fn JSR(cpu: &mut Self, bus: &mut Bus) {
+    fn JSR(&mut self, bus: &mut Bus) {
         // Push PC (already advanced by Cpu::Absolute)
-        let lo = (cpu.reg.PC & 0xff) as u8;
-        let hi = ((cpu.reg.PC >> 8) & 0xff) as u8;
-        cpu.push_stack(bus, lo);
-        cpu.push_stack(bus, hi);
+        let lo = (self.reg.PC & 0xff) as u8;
+        let hi = ((self.reg.PC >> 8) & 0xff) as u8;
+        self.push_stack(bus, lo);
+        self.push_stack(bus, hi);
 
         // Jump
-        cpu.reg.PC = cpu.addr_target;
+        self.reg.PC = self.addr_target;
     }
 
     /// Load Accumulator
-    fn LDA(cpu: &mut Self, bus: &mut Bus) {
-        let fetched = cpu.fetch(bus);
-        cpu.reg.A = fetched;
-        cpu.reg.P.zero = fetched == 0;
-        cpu.reg.P.negative = (fetched & 0x80) != 0;
+    fn LDA(&mut self, bus: &mut Bus) {
+        let fetched = self.fetch(bus);
+        self.reg.A = fetched;
+        self.reg.P.zero = fetched == 0;
+        self.reg.P.negative = (fetched & 0x80) != 0;
     }
 
     /// Load X Register
-    fn LDX(cpu: &mut Self, bus: &mut Bus) {
-        let fetched = cpu.fetch(bus);
-        cpu.reg.X = fetched;
-        cpu.reg.P.zero = fetched == 0;
-        cpu.reg.P.negative = (fetched & 0x80) != 0;
+    fn LDX(&mut self, bus: &mut Bus) {
+        let fetched = self.fetch(bus);
+        self.reg.X = fetched;
+        self.reg.P.zero = fetched == 0;
+        self.reg.P.negative = (fetched & 0x80) != 0;
     }
 
-    fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn LDY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn LSR(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// No Operation
-    fn NOP(_cpu: &mut Self, _bus: &mut Bus) {
+    fn NOP(&mut self, _bus: &mut Bus) {
 
     }
 
-    fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn OR(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Logical Inclusive OR
-    fn ORA(cpu: &mut Self, bus: &mut Bus) {
-        let m = cpu.fetch(bus);
-        cpu.reg.A = cpu.reg.A | m;
-        cpu.reg.P.zero = cpu.reg.A == 0;
-        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    fn ORA(&mut self, bus: &mut Bus) {
+        let m = self.fetch(bus);
+        self.reg.A = self.reg.A | m;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
     /// Push Accumulator
-    fn PHA(cpu: &mut Self, bus: &mut Bus) {
-        cpu.push_stack(bus, cpu.reg.A);
+    fn PHA(&mut self, bus: &mut Bus) {
+        self.push_stack(bus, self.reg.A);
     }
 
     /// Push Processor Status
-    fn PHP(cpu: &mut Self, bus: &mut Bus) {
-        let mut status = cpu.reg.P;
+    fn PHP(&mut self, bus: &mut Bus) {
+        let mut status = self.reg.P;
         status.brk = true;
         status.unused = true;
-        cpu.push_stack(bus, (&status).into());
+        self.push_stack(bus, (&status).into());
     }
 
     /// Pull Accumulator
-    fn PLA(cpu: &mut Self, bus: &mut Bus) {
-        let byte = cpu.pop_stack(bus);
-        cpu.reg.A = byte;
-        cpu.reg.P.zero = byte == 0;
-        cpu.reg.P.negative = (byte & 0x80) != 0;
+    fn PLA(&mut self, bus: &mut Bus) {
+        let byte = self.pop_stack(bus);
+        self.reg.A = byte;
+        self.reg.P.zero = byte == 0;
+        self.reg.P.negative = (byte & 0x80) != 0;
     }
 
     /// Pull Processor Status
-    fn PLP(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P = cpu.pop_stack(bus).into();
+    fn PLP(&mut self, bus: &mut Bus) {
+        self.reg.P = self.pop_stack(bus).into();
     }
 
-    fn ROL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn ROR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn RTI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn ROL(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn ROR(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn RTI(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Return from Subroutine
-    fn RTS(cpu: &mut Self, bus: &mut Bus) {
-        let hi = cpu.pop_stack(bus) as u16;
-        let lo = cpu.pop_stack(bus) as u16;
-        cpu.reg.PC = (hi << 8) | lo;
+    fn RTS(&mut self, bus: &mut Bus) {
+        let hi = self.pop_stack(bus) as u16;
+        let lo = self.pop_stack(bus) as u16;
+        self.reg.PC = (hi << 8) | lo;
     }
 
-    fn SBC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn SBC(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Set Carry Flag
-    fn SEC(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.carry = true;
+    fn SEC(&mut self, bus: &mut Bus) {
+        self.reg.P.carry = true;
     }
 
     /// Set Decimal Flag
-    fn SED(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.decimal = true;
+    fn SED(&mut self, bus: &mut Bus) {
+        self.reg.P.decimal = true;
     }
 
     /// Set Interrupt Disable
-    fn SEI(cpu: &mut Self, bus: &mut Bus) {
-        cpu.reg.P.interrupt = true;
+    fn SEI(&mut self, bus: &mut Bus) {
+        self.reg.P.interrupt = true;
     }
 
     /// Store Accumulator
-    fn STA(cpu: &mut Self, bus: &mut Bus) {
-        bus.write(cpu.addr_target, cpu.reg.A);
+    fn STA(&mut self, bus: &mut Bus) {
+        bus.write(self.addr_target, self.reg.A);
     }
 
     /// Store X Register
-    fn STX(cpu: &mut Self, bus: &mut Bus) {
-        bus.write(cpu.addr_target, cpu.reg.X);
+    fn STX(&mut self, bus: &mut Bus) {
+        bus.write(self.addr_target, self.reg.X);
     }
 
-    fn STY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TAX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TAY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TSX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TXA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TXS(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn TYA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    fn STY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TAX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TAY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TSX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TXA(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TXS(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn TYA(&mut self, bus: &mut Bus) { unimplemented!(); }
 }
 
 
