@@ -69,9 +69,11 @@ impl Cpu {
         (op.address_mode_fn)(self, bus);
         (op.op_fn)(self, bus);
 
+        let p: u8 = (&registers.P).into();
+
         println!(
-            "{}{:6}{}  CYC:{:_>6}",
-            self.this_op, "", registers, clock_count
+            "{}{:6}{}  CYC:{:_>6}    {:08b}",
+            self.this_op, "", registers, clock_count, p
         );
 
         self.ops += 1;
@@ -225,27 +227,39 @@ impl Cpu {
     // Instructions
     fn XXX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ADC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn AND(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    /// Logical AND
+    fn AND(cpu: &mut Self, bus: &mut Bus) {
+        let m = cpu.fetch(bus);
+        cpu.reg.A = cpu.reg.A & m;
+        cpu.reg.P.zero = cpu.reg.A == 0;
+        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    }
+
     fn ASL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Branch if Carry Clear
     fn BCC(cpu: &mut Self, bus: &mut Bus) {
         if !cpu.reg.P.carry {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Branch if Carry Set
     fn BCS(cpu: &mut Self, bus: &mut Bus) {
         if cpu.reg.P.carry {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Branch if Equal
     fn BEQ(cpu: &mut Self, bus: &mut Bus) {
         if cpu.reg.P.zero {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Bit Test
     fn BIT(cpu: &mut Self, bus: &mut Bus) {
         // N = M(7), V = M(6), Z = A & M
         // let m = bus.read(cpu.addr_target);
@@ -256,14 +270,21 @@ impl Cpu {
         cpu.store(m, bus);
     }
 
-    fn BMI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    /// Branch if Minus
+    fn BMI(cpu: &mut Self, bus: &mut Bus) {
+        if cpu.reg.P.negative {
+            Self::branch(cpu, bus);
+        }
+    }
 
+    /// Branch if Not Equal
     fn BNE(cpu: &mut Self, bus: &mut Bus) {
         if !cpu.reg.P.zero {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Branch if Positive
     fn BPL(cpu: &mut Self, bus: &mut Bus) {
         if !cpu.reg.P.negative {
             Self::branch(cpu, bus);
@@ -272,40 +293,70 @@ impl Cpu {
 
     fn BRK(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Branch if Overflow Clear
     fn BVC(cpu: &mut Self, bus: &mut Bus) {
         if !cpu.reg.P.overflow {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Branch if Overflow Set
     fn BVS(cpu: &mut Self, bus: &mut Bus) {
         if cpu.reg.P.overflow {
             Self::branch(cpu, bus);
         }
     }
 
+    /// Clear Carry Flag
     fn CLC(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.carry = false;
     }
 
-    fn CLD(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    /// Clear Decimal Flag
+    fn CLD(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.decimal = false;
+    }
+
     fn CLI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn CLV(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn CMP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    /// Clear Overflow Flag
+    fn CLV(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P.overflow = false;
+    }
+
+    /// Compare
+    fn CMP(cpu: &mut Self, bus: &mut Bus) {
+        let a = cpu.reg.A;
+        let m = cpu.fetch(bus);
+        cpu.reg.P.carry = a >= m;
+        cpu.reg.P.zero = a == m;
+        cpu.reg.P.negative = a < m;
+    }
+
     fn CPX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn CPY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn DEC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn DEX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn DEY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn EOR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+
+    /// Exclusive OR
+    fn EOR(cpu: &mut Self, bus: &mut Bus) {
+        let m = cpu.fetch(bus);
+        cpu.reg.A = cpu.reg.A ^ m;
+        cpu.reg.P.zero = cpu.reg.A == 0;
+        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    }
+
     fn INC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn INX(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn INY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Jump
     fn JMP(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.PC = cpu.addr_target;
     }
 
+    /// Jump to Subroutine
     fn JSR(cpu: &mut Self, bus: &mut Bus) {
         // Push PC (already advanced by Cpu::Absolute)
         let lo = (cpu.reg.PC & 0xff) as u8;
@@ -317,6 +368,7 @@ impl Cpu {
         cpu.reg.PC = cpu.addr_target;
     }
 
+    /// Load Accumulator
     fn LDA(cpu: &mut Self, bus: &mut Bus) {
         let fetched = cpu.fetch(bus);
         cpu.reg.A = fetched;
@@ -324,6 +376,7 @@ impl Cpu {
         cpu.reg.P.negative = (fetched & 0x80) != 0;
     }
 
+    /// Load X Register
     fn LDX(cpu: &mut Self, bus: &mut Bus) {
         let fetched = cpu.fetch(bus);
         cpu.reg.X = fetched;
@@ -334,14 +387,27 @@ impl Cpu {
     fn LDY(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn LSR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// No Operation
     fn NOP(_cpu: &mut Self, _bus: &mut Bus) {
 
     }
 
     fn OR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn ORA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
-    fn PHA(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Logical Inclusive OR
+    fn ORA(cpu: &mut Self, bus: &mut Bus) {
+        let m = cpu.fetch(bus);
+        cpu.reg.A = cpu.reg.A | m;
+        cpu.reg.P.zero = cpu.reg.A == 0;
+        cpu.reg.P.negative = (cpu.reg.A & 0x80) != 0;
+    }
+
+    /// Push Accumulator
+    fn PHA(cpu: &mut Self, bus: &mut Bus) {
+        cpu.push_stack(bus, cpu.reg.A);
+    }
+
+    /// Push Processor Status
     fn PHP(cpu: &mut Self, bus: &mut Bus) {
         let mut status = cpu.reg.P;
         status.brk = true;
@@ -349,18 +415,24 @@ impl Cpu {
         cpu.push_stack(bus, (&status).into());
     }
 
+    /// Pull Accumulator
     fn PLA(cpu: &mut Self, bus: &mut Bus) {
         let byte = cpu.pop_stack(bus);
         cpu.reg.A = byte;
-        if byte == 0 { cpu.reg.P.zero = true; }
-        if (byte & 0x80) == 1 { cpu.reg.P.negative = true; }
+        cpu.reg.P.zero = byte == 0;
+        cpu.reg.P.negative = (byte & 0x80) != 0;
     }
 
-    fn PLP(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
+    /// Pull Processor Status
+    fn PLP(cpu: &mut Self, bus: &mut Bus) {
+        cpu.reg.P = cpu.pop_stack(bus).into();
+    }
+
     fn ROL(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn ROR(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
     fn RTI(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Return from Subroutine
     fn RTS(cpu: &mut Self, bus: &mut Bus) {
         let hi = cpu.pop_stack(bus) as u16;
         let lo = cpu.pop_stack(bus) as u16;
@@ -369,22 +441,27 @@ impl Cpu {
 
     fn SBC(cpu: &mut Self, bus: &mut Bus) { unimplemented!(); }
 
+    /// Set Carry Flag
     fn SEC(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.carry = true;
     }
 
+    /// Set Decimal Flag
     fn SED(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.decimal = true;
     }
 
+    /// Set Interrupt Disable
     fn SEI(cpu: &mut Self, bus: &mut Bus) {
         cpu.reg.P.interrupt = true;
     }
 
+    /// Store Accumulator
     fn STA(cpu: &mut Self, bus: &mut Bus) {
         bus.write(cpu.addr_target, cpu.reg.A);
     }
 
+    /// Store X Register
     fn STX(cpu: &mut Self, bus: &mut Bus) {
         bus.write(cpu.addr_target, cpu.reg.X);
     }
