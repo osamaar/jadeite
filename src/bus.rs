@@ -10,7 +10,7 @@ pub struct Bus <'a> {
 impl <'a> Bus <'a> {
     pub fn new() -> Self {
         Self {
-            ram: vec![0xffu8; 0x800].into_boxed_slice(),
+            ram: vec![0x0u8; 0x800].into_boxed_slice(),
             cart: None,
         }
     }
@@ -33,7 +33,7 @@ impl <'a> Bus <'a> {
                 cart.cpu_read(addr)
             },
 
-            _ => unimplemented!()
+            a => panic!("Bus: Adressing nowhere: {:#06X}", a),
         }
     }
 
