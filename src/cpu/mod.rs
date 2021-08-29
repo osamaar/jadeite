@@ -65,16 +65,18 @@ impl Cpu {
         let clock_count = self.clock_count;
         let registers = self.reg;
 
+        let p: u8 = (&registers.P).into();
+
+
         self.cycles = op.cycles;
         (op.address_mode_fn)(self, bus);
-        (op.op_fn)(self, bus);
-
-        let p: u8 = (&registers.P).into();
 
         println!(
             "{}{:6}{}  CYC:{:_>6}    {:08b}",
             self.this_op, "", registers, clock_count, p
         );
+
+        (op.op_fn)(self, bus);
 
         self.ops += 1;
     }
@@ -128,37 +130,43 @@ impl Cpu {
     /// addressing logic based on current instruction's addressing mode.
     fn fetch(&mut self, bus: &mut Bus) -> u8 {
         match self.this_op.addr_mode {
+            AddrMode::Absolute(_) |
+            AddrMode::ZP(_) |
+            AddrMode::IdxZPX(_) |
+            AddrMode::IdxZPY(_) |
+            AddrMode::IdxAbsX(_) |
+            AddrMode::IdxAbsY(_) |
+            AddrMode::IdxIndX(_) |
+            AddrMode::IndIdxY(_) |
+            AddrMode::Indirect(_) => {
+                bus.read(self.addr_target as u16)
+            }
+
             AddrMode::Accum => todo!(),
             AddrMode::Imm(byte) => byte,
-            AddrMode::Absolute(_) => todo!(),
-            AddrMode::ZP(addr) => bus.read(addr as u16),
-            AddrMode::IdxZPX(_) => todo!(),
-            AddrMode::IdxZPY(_) => todo!(),
-            AddrMode::IdxAbsX(_) => todo!(),
-            AddrMode::IdxAbsY(_) => todo!(),
             AddrMode::Implied => todo!(),
             AddrMode::Relative(_, _) => todo!(),
-            AddrMode::IdxIndX(_) => todo!(),
-            AddrMode::IndIdxY(_) => todo!(),
-            AddrMode::Indirect(_) => todo!(),
         }
     }
 
     fn store(&mut self, value: u8, bus: &mut Bus) {
         match self.this_op.addr_mode {
+            AddrMode::Absolute(_) |
+            AddrMode::ZP(_) |
+            AddrMode::IdxZPX(_) |
+            AddrMode::IdxZPY(_) |
+            AddrMode::IdxAbsX(_) |
+            AddrMode::IdxAbsY(_) |
+            AddrMode::IdxIndX(_) |
+            AddrMode::IndIdxY(_) |
+            AddrMode::Indirect(_) => {
+                bus.write(self.addr_target as u16, value);
+            }
+
             AddrMode::Accum => todo!(),
             AddrMode::Imm(_) => todo!(),
-            AddrMode::Absolute(_) => todo!(),
-            AddrMode::ZP(addr) => bus.write(addr as u16, value),
-            AddrMode::IdxZPX(_) => todo!(),
-            AddrMode::IdxZPY(_) => todo!(),
-            AddrMode::IdxAbsX(_) => todo!(),
-            AddrMode::IdxAbsY(_) => todo!(),
             AddrMode::Implied => todo!(),
             AddrMode::Relative(_, _) => todo!(),
-            AddrMode::IdxIndX(_) => todo!(),
-            AddrMode::IndIdxY(_) => todo!(),
-            AddrMode::Indirect(_) => todo!(),
         }
     }
 
@@ -226,7 +234,32 @@ impl Cpu {
 
     // Instructions
     fn XXX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn ADC(&mut self, bus: &mut Bus) { unimplemented!(); }
+
+    /// Add with Carry
+    fn ADC(&mut self, bus: &mut Bus) {
+        // V  A M S  A^S  M^S    &
+        // 0  0 0 0    0    0    0
+        // 1  0 0 1    1    1    1
+        // 1  1 1 0    1    1    1
+        // 0  1 1 1    0    0    0
+        // 0  0 1 0    0    1    0
+        // 0  0 1 1    1    0    0
+        // 0  1 0 0    1    0    0
+        // 0  1 0 1    0    1    0
+
+        // C = carry from 7th bit - indicates unsigned overflow.
+        // V = carry from 6th bit - indicates signed overflow.
+
+        let m = self.fetch(bus);
+        let a = self.reg.A;
+        let sum = a as u16 + m  as u16 + self.reg.P.carry as u16;
+        self.reg.P.carry = (sum & 0x100) != 0;
+        let sum = sum as u8;
+        self.reg.A = sum;
+        self.reg.P.overflow = (((a^sum) & (m^sum)) & 0x80) != 0;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
+    }
 
     /// Logical AND
     fn AND(&mut self, bus: &mut Bus) {
@@ -327,9 +360,10 @@ impl Cpu {
     fn CMP(&mut self, bus: &mut Bus) {
         let a = self.reg.A;
         let m = self.fetch(bus);
+        let result = a.wrapping_sub(m);
         self.reg.P.carry = a >= m;
         self.reg.P.zero = a == m;
-        self.reg.P.negative = a < m;
+        self.reg.P.negative = (result & 0x80) != 0;
     }
 
     fn CPX(&mut self, bus: &mut Bus) { unimplemented!(); }
