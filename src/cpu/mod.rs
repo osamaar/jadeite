@@ -112,18 +112,15 @@ impl Cpu {
     }
 
     fn push_stack(&mut self, bus: &mut Bus, value: u8) {
-        self.reg.S -= 1;
         let addr = 0x0100 | self.reg.S as u16;
         bus.write(addr, value);
-        // println!("Stack push: {:#04X} =>Addr:{:04X}", value, addr);
+        self.reg.S -= 1;
     }
 
     fn pop_stack(&mut self, bus: &mut Bus) -> u8 {
-        let addr = 0x0100 | self.reg.S as u16;
-        let byte = bus.read(addr);
         self.reg.S += 1;
-        // println!("Stack Pop: {:#04X} <=Addr:{:04X}", byte, addr);
-        byte
+        let addr = 0x0100 | self.reg.S as u16;
+        bus.read(addr)
     }
 
     /// Centralized op target access. All ops can use this to avoid switching
@@ -406,7 +403,6 @@ impl Cpu {
         self.reg.Y = y;
         self.reg.P.zero = y == 0;
         self.reg.P.negative = (y & 0x80) != 0;
-        println!("================ {:0x}", y);
     }
 
     /// Exclusive OR
@@ -449,10 +445,11 @@ impl Cpu {
     /// Jump to Subroutine
     fn JSR(&mut self, bus: &mut Bus) {
         // Push PC (already advanced by Cpu::Absolute)
-        let lo = (self.reg.PC & 0xff) as u8;
-        let hi = ((self.reg.PC >> 8) & 0xff) as u8;
-        self.push_stack(bus, lo);
+        let loc = self.reg.PC - 1;
+        let lo = (loc & 0xff) as u8;
+        let hi = ((loc >> 8) & 0xff) as u8;
         self.push_stack(bus, hi);
+        self.push_stack(bus, lo);
 
         // Jump
         self.reg.PC = self.addr_target;
@@ -531,9 +528,9 @@ impl Cpu {
 
     /// Return from Subroutine
     fn RTS(&mut self, bus: &mut Bus) {
-        let hi = self.pop_stack(bus) as u16;
         let lo = self.pop_stack(bus) as u16;
-        self.reg.PC = (hi << 8) | lo;
+        let hi = self.pop_stack(bus) as u16;
+        self.reg.PC = ((hi << 8) | lo) + 1;
     }
 
     /// Subtract with Carry
@@ -567,21 +564,58 @@ impl Cpu {
 
     /// Store Accumulator
     fn STA(&mut self, bus: &mut Bus) {
-        bus.write(self.addr_target, self.reg.A);
+        self.store(self.reg.A, bus);
     }
 
     /// Store X Register
     fn STX(&mut self, bus: &mut Bus) {
-        bus.write(self.addr_target, self.reg.X);
+        self.store(self.reg.X, bus);
     }
 
-    fn STY(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TAX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TAY(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TSX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TXA(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TXS(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn TYA(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Store Y Register
+    fn STY(&mut self, bus: &mut Bus) {
+        self.store(self.reg.Y, bus);
+    }
+
+    /// Transfer Accumulator to X
+    fn TAX(&mut self, bus: &mut Bus) {
+        self.reg.X = self.reg.A;
+        self.reg.P.zero = self.reg.X == 0;
+        self.reg.P.negative = (self.reg.X & 0x80) != 0;
+    }
+
+    /// Transfer Accumulator to Y
+    fn TAY(&mut self, bus: &mut Bus) {
+        self.reg.Y = self.reg.A;
+        self.reg.P.zero = self.reg.Y == 0;
+        self.reg.P.negative = (self.reg.Y & 0x80) != 0;
+    }
+
+    /// Transfer Stack Pointer to X
+    fn TSX(&mut self, bus: &mut Bus) {
+        self.reg.X = self.reg.S;
+        self.reg.P.zero = self.reg.X == 0;
+        self.reg.P.negative = (self.reg.X & 0x80) != 0;
+    }
+
+    /// Transfer X to Accumulator
+    fn TXA(&mut self, bus: &mut Bus) {
+        self.reg.A = self.reg.X;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
+    }
+
+    /// Transfer X to Stack Pointer
+    fn TXS(&mut self, bus: &mut Bus) {
+        self.reg.S = self.reg.X;
+    }
+
+    /// Transfer Y to Accumulator
+    fn TYA(&mut self, bus: &mut Bus) {
+        self.reg.A = self.reg.Y;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
+    }
 }
 
 
