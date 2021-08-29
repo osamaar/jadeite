@@ -68,7 +68,6 @@ impl Cpu {
         let p: u8 = (&registers.P).into();
 
 
-        self.cycles = op.cycles;
         (op.address_mode_fn)(self, bus);
 
         println!(
@@ -78,6 +77,7 @@ impl Cpu {
 
         (op.op_fn)(self, bus);
 
+        self.cycles += op.cycles;
         self.ops += 1;
     }
     
@@ -366,11 +366,48 @@ impl Cpu {
         self.reg.P.negative = (result & 0x80) != 0;
     }
 
-    fn CPX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn CPY(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn DEC(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn DEX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn DEY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn CPX(&mut self, bus: &mut Bus) {
+        let x = self.reg.X;
+        let m = self.fetch(bus);
+        let result = x.wrapping_sub(m);
+        self.reg.P.carry = x >= m;
+        self.reg.P.zero = x == m;
+        self.reg.P.negative = (result & 0x80) != 0;
+    }
+
+    fn CPY(&mut self, bus: &mut Bus) {
+        let y = self.reg.Y;
+        let m = self.fetch(bus);
+        let result = y.wrapping_sub(m);
+        self.reg.P.carry = y >= m;
+        self.reg.P.zero = y == m;
+        self.reg.P.negative = (result & 0x80) != 0;
+    }
+
+    /// Decrement Memory
+    fn DEC(&mut self, bus: &mut Bus) {
+        let m = self.fetch(bus).wrapping_add(1);
+        self.reg.P.zero = m == 0;
+        self.reg.P.negative = (m & 0x80) != 0;
+        self.store(m, bus);
+    }
+
+    /// Decrement X Register
+    fn DEX(&mut self, bus: &mut Bus) {
+        let x = self.reg.X.wrapping_sub(1);
+        self.reg.X = x;
+        self.reg.P.zero = x == 0;
+        self.reg.P.negative = (x & 0x80) != 0;
+    }
+
+    /// Decrement Y Register
+    fn DEY(&mut self, bus: &mut Bus) {
+        let y = self.reg.Y.wrapping_sub(1);
+        self.reg.Y = y;
+        self.reg.P.zero = y == 0;
+        self.reg.P.negative = (y & 0x80) != 0;
+        println!("================ {:0x}", y);
+    }
 
     /// Exclusive OR
     fn EOR(&mut self, bus: &mut Bus) {
@@ -380,9 +417,29 @@ impl Cpu {
         self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
-    fn INC(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn INX(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn INY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Increment Memory
+    fn INC(&mut self, bus: &mut Bus) {
+        let m = self.fetch(bus).wrapping_add(1);
+        self.reg.P.zero = m == 0;
+        self.reg.P.negative = (m & 0x80) != 0;
+        self.store(m, bus);
+    }
+
+    /// Increment X Register
+    fn INX(&mut self, bus: &mut Bus) {
+        let x = self.reg.X.wrapping_add(1);
+        self.reg.X = x;
+        self.reg.P.zero = x == 0;
+        self.reg.P.negative = (x & 0x80) != 0;
+    }
+
+    /// Increment Y Register
+    fn INY(&mut self, bus: &mut Bus) {
+        let y = self.reg.Y.wrapping_add(1);
+        self.reg.Y = y;
+        self.reg.P.zero = y == 0;
+        self.reg.P.negative = (y & 0x80) != 0;
+    }
 
     /// Jump
     fn JMP(&mut self, bus: &mut Bus) {
@@ -417,7 +474,14 @@ impl Cpu {
         self.reg.P.negative = (fetched & 0x80) != 0;
     }
 
-    fn LDY(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Load Y Register
+    fn LDY(&mut self, bus: &mut Bus) {
+        let fetched = self.fetch(bus);
+        self.reg.Y = fetched;
+        self.reg.P.zero = fetched == 0;
+        self.reg.P.negative = (fetched & 0x80) != 0;
+    }
+
     fn LSR(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// No Operation
@@ -472,7 +536,19 @@ impl Cpu {
         self.reg.PC = (hi << 8) | lo;
     }
 
-    fn SBC(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Subtract with Carry
+    fn SBC(&mut self, bus: &mut Bus) {
+        let m = !self.fetch(bus);
+        let a = self.reg.A;
+        let carry_in = self.reg.P.carry as u16;
+        let sum = a as u16 + m as u16 + carry_in;
+        self.reg.P.carry = (sum & 0xff00) != 0;
+        let sum = sum as u8;
+        self.reg.A = sum;
+        self.reg.P.overflow = (((a^sum) & (m^sum)) & 0x80) != 0;
+        self.reg.P.zero = self.reg.A == 0;
+        self.reg.P.negative = (self.reg.A & 0x80) != 0;
+    }
 
     /// Set Carry Flag
     fn SEC(&mut self, bus: &mut Bus) {
