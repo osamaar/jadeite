@@ -4,6 +4,7 @@
 mod opcode;
 mod opcode_values;
 
+use core::panic;
 use std::{fmt::{Debug, Display}, num::Wrapping};
 
 use crate::Bus;
@@ -71,8 +72,8 @@ impl Cpu {
         (op.address_mode_fn)(self, bus);
 
         println!(
-            "{}{:6}{}  CYC:{:_>6}    {:08b}",
-            self.this_op, "", registers, clock_count, p
+            "{:36}{}  CYC:{:_>6}    {:08b}",
+            self.this_op, registers, clock_count, p
         );
 
         (op.op_fn)(self, bus);
@@ -195,7 +196,7 @@ impl Cpu {
     fn Absolute(&mut self, bus: &mut Bus) {
         let lo = self.pc_advance(bus) as u16;
         let hi = self.pc_advance(bus) as u16;
-        self.addr_target = (hi << 8) + lo;
+        self.addr_target = (hi << 8) | lo;
         self.this_op.addr_mode = AddrMode::Absolute(self.addr_target);
     }
 
@@ -204,10 +205,41 @@ impl Cpu {
         self.this_op.addr_mode = AddrMode::ZP(self.addr_target as u8);
     }
 
-    fn IdxZPX(&mut self, bus: &mut Bus) { unimplemented!() }
-    fn IdxZPY(&mut self, bus: &mut Bus) { unimplemented!() }
-    fn IdxAbsX(&mut self, bus: &mut Bus) { unimplemented!() }
-    fn IdxAbsY(&mut self, bus: &mut Bus) { unimplemented!() }
+    /// Indexed Zero Page [ZP, X]
+    fn IdxZPX(&mut self, bus: &mut Bus) {
+        let base = self.pc_advance(bus) as u16;
+        let offset = self.reg.X as u16;
+        self.addr_target = ((base + offset) & 0xFF) as u16;
+        self.this_op.addr_mode = AddrMode::ZP(base as u8);
+    }
+
+    /// Indexed Zero Page [ZP, Y]
+    fn IdxZPY(&mut self, bus: &mut Bus) {
+        let base = self.pc_advance(bus) as u16;
+        let offset = self.reg.X as u16;
+        self.addr_target = ((base + offset) & 0xFF) as u16;
+        self.this_op.addr_mode = AddrMode::ZP(base as u8);
+    }
+
+    /// Indexed Absolute [ABS, X]
+    fn IdxAbsX(&mut self, bus: &mut Bus) {
+        let lo = self.pc_advance(bus) as u16;
+        let hi = self.pc_advance(bus) as u16;
+        let base = (hi << 8) | lo;
+        let offset = self.reg.X as u16;
+        self.addr_target = base + offset;
+        self.this_op.addr_mode = AddrMode::IdxAbsX(base);
+    }
+
+    /// Indexed Absolute [ABS, Y]
+    fn IdxAbsY(&mut self, bus: &mut Bus) {
+        let lo = self.pc_advance(bus) as u16;
+        let hi = self.pc_advance(bus) as u16;
+        let base = (hi << 8) | lo;
+        let offset = self.reg.Y as u16;
+        self.addr_target = base.wrapping_add(offset);
+        self.this_op.addr_mode = AddrMode::IdxAbsY(base);
+    }
 
     fn Implied(&mut self, _bus: &mut Bus) {
         self.this_op.addr_mode = AddrMode::Implied;
@@ -227,12 +259,49 @@ impl Cpu {
         self.this_op.addr_mode = AddrMode::Relative(operand, self.addr_target);
     }
 
-    fn IdxIndX(&mut self, bus: &mut Bus) { unimplemented!() }
-    fn IndIdxY(&mut self, bus: &mut Bus) { unimplemented!() }
-    fn Indirect(&mut self, bus: &mut Bus) { unimplemented!() }
+    /// Indexed Indirect [(IND, X)]
+    fn IdxIndX(&mut self, bus: &mut Bus) {
+        let base = self.pc_advance(bus) as u16;
+        let offset = self.reg.X as u16;
+        let loc_zp = (base + offset) &0xFF;
+        let lo = bus.read(loc_zp) as u16;
+        let hi = bus.read(loc_zp + 1) as u16;
+        self.addr_target = (hi << 8) | lo;
+        self.this_op.addr_mode = AddrMode::IdxIndX(base as u8);
+    }
+
+    /// Indirect Indexed [(IND), Y]
+    fn IndIdxY(&mut self, bus: &mut Bus) {
+        let loc_zp = self.pc_advance(bus) as u16;
+        let lo = bus.read(loc_zp) as u16;
+        let hi = bus.read(loc_zp + 1) as u16;
+        let base = (hi << 8) | lo;
+        let offset = self.reg.Y as u16;
+        self.addr_target = base.wrapping_add(offset);
+        self.this_op.addr_mode = AddrMode::IndIdxY(loc_zp as u8);
+    }
+
+    /// Absolute Indirect [(IND, X)] [JMP (IND) Only]
+    fn Indirect(&mut self, bus: &mut Bus) {
+        let lo = self.pc_advance(bus) as u16;
+        let hi = self.pc_advance(bus) as u16;
+        let loc = (hi << 8) | lo;
+
+        // Indirect addressing in original 6502 has a bug on page boundaries.
+        // It wraps like Zero Page instructions do.
+        let hi_addr = (loc & 0xFF00) | ((loc+1) & 0x00FF);
+
+        let lo = bus.read(loc) as u16;
+        let hi = bus.read(hi_addr) as u16;
+        self.addr_target = (hi << 8) | lo;
+        self.this_op.addr_mode = AddrMode::Indirect(loc);
+    }
 
     // Instructions
+
+    // Illegal instruction
     fn XXX(&mut self, bus: &mut Bus) {
+        unimplemented!();
         self.NOP(bus);
     }
 

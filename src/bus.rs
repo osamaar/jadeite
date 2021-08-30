@@ -22,7 +22,7 @@ impl <'a> Bus <'a> {
     pub fn read(&self, addr: u16) -> u8 {
         let cart = self.cart.as_ref().unwrap();
 
-        match addr {
+        let value = match addr {
             // RAM
             0x00..=0x7ff => {
                 self.ram[addr as usize]
@@ -34,11 +34,15 @@ impl <'a> Bus <'a> {
             },
 
             a => panic!("Bus: Adressing nowhere: {:#06X}", a),
-        }
+        };
+
+        // println!("= Read: @{:04X} = {:02X}", addr, value);
+        value
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
         let cart = self.cart.as_mut().unwrap();
+        // println!("+ WRITE: @{:04X} = {:02X}", addr, value);
 
         match addr {
             // RAM

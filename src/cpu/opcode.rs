@@ -45,49 +45,68 @@ impl Default for OpData {
 
 impl Display for OpData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
+        let mut out = String::new();
+        let mut asm = String::new();
 
-        write!(f, "{:04X}", self.pc)?;
-        write!(f, "{:4}{:02X} ", "", self.opcode)?;
+        write!(out, "{:04X}", self.pc)?;
+        write!(out, "{:4}{:02X} ", "", self.opcode)?;
 
         match self.addr_mode {
             AddrMode::Accum => {
-                write!(f, "{0:2} {0:2}", "")?;
-                write!(s, "{:2}", "A")?;
+                write!(out, "{0:2} {0:2}", "")?;
+                write!(asm, "{:2}", "A")?;
             },
-
             AddrMode::Imm(a) => {
-                write!(f, "{:02X} {:2}", a, "")?;
-                write!(s, "#${:02X}", a)?;
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "#${:02X}", a)?;
             },
             AddrMode::Absolute(a) => {
-                write!(f, "{:02X} {:02X}", a.lo(), a.hi())?;
-                write!(s, "${:04X}", a)?;
+                write!(out, "{:02X} {:02X}", a.lo(), a.hi())?;
+                write!(asm, "${:04X}", a)?;
             },
             AddrMode::ZP(a) => {
-                write!(f, "{:02X} {:2}", a, "")?;
-                write!(s, "#${:02X}", a)?;
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "#${:02X}", a)?;
             },
-            AddrMode::IdxZPX(_) => todo!(),
-            AddrMode::IdxZPY(_) => todo!(),
-            AddrMode::IdxAbsX(_) => todo!(),
-            AddrMode::IdxAbsY(_) => todo!(),
+            AddrMode::IdxZPX(a) => {
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "${:02X}, X", a)?;
+            },
+            AddrMode::IdxZPY(a) => {
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "${:02X}, Y", a)?;
+            },
+            AddrMode::IdxAbsX(a) => {
+                write!(out, "{:02X} {:02X}", a.lo(), a.hi())?;
+                write!(asm, "${:02X},X", a)?;
+            },
+            AddrMode::IdxAbsY(a) => {
+                write!(out, "{:02X} {:02X}", a.lo(), a.hi())?;
+                write!(asm, "${:02X},Y", a)?;
+            },
             AddrMode::Implied => {
-                write!(f, "{0:2} {0:2}", "")?;
+                write!(out, "{0:2} {0:2}", " ")?;
             },
             AddrMode::Relative(a, b) => {
-                write!(f, "{:02X} {:2}", a, "")?;
-                write!(s, "${:02X}", b)?;
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "${:02X}", b)?;
             },
-            AddrMode::IdxIndX(_) => todo!(),
-            AddrMode::IndIdxY(_) => todo!(),
-            AddrMode::Indirect(_) => todo!(),
+            AddrMode::IdxIndX(a) => {
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "(${:02X}, X)", a)?;
+            },
+            AddrMode::IndIdxY(a) => {
+                write!(out, "{:02X} {:2}", a, "")?;
+                write!(asm, "(${:02X}, Y)", a)?;
+            },
+            AddrMode::Indirect(a) => {
+                write!(out, "{:02X} {:02X}", a&0xFF, (a>>8)&0xFF)?;
+                write!(asm, "(${:04X})", a)?;
+            },
         }
 
-        write!(f, "{:4}{} {:<6}", "", self.mnemonic, s)?;
-
-
-        Ok(())
+        write!(out, "{:4}{} {}", "", self.mnemonic, asm)?;
+        out.fmt(f)
     }
 }
 
