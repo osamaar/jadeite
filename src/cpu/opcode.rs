@@ -51,7 +51,11 @@ impl Display for OpData {
         write!(f, "{:4}{:02X} ", "", self.opcode)?;
 
         match self.addr_mode {
-            AddrMode::Accum => todo!(),
+            AddrMode::Accum => {
+                write!(f, "{0:2} {0:2}", "")?;
+                write!(s, "{:2}", "A")?;
+            },
+
             AddrMode::Imm(a) => {
                 write!(f, "{:02X} {:2}", a, "")?;
                 write!(s, "#${:02X}", a)?;

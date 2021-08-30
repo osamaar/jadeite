@@ -105,7 +105,7 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x4e,  LSR,  Absolute, 3, 6, 0);
     add_op!(table, 0x4f,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x50,  BVC,  Relative, 2, 2, 1);
-    add_op!(table, 0x51,  OR ,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0x51,  EOR ,  IndIdxY , 2, 5, 2);
     add_op!(table, 0x52,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x53,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x54,  XXX,  Implied , 1, 2, 0);

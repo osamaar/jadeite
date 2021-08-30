@@ -139,7 +139,7 @@ impl Cpu {
                 bus.read(self.addr_target as u16)
             }
 
-            AddrMode::Accum => todo!(),
+            AddrMode::Accum => self.reg.A,
             AddrMode::Imm(byte) => byte,
             AddrMode::Implied => todo!(),
             AddrMode::Relative(_, _) => todo!(),
@@ -160,7 +160,7 @@ impl Cpu {
                 bus.write(self.addr_target as u16, value);
             }
 
-            AddrMode::Accum => todo!(),
+            AddrMode::Accum => self.reg.A = value,
             AddrMode::Imm(_) => todo!(),
             AddrMode::Implied => todo!(),
             AddrMode::Relative(_, _) => todo!(),
@@ -183,7 +183,9 @@ impl Cpu {
     }
 
     // Addressing Modes
-    fn Accum(&mut self, bus: &mut Bus) { unimplemented!() }
+    fn Accum(&mut self, bus: &mut Bus) {
+        self.this_op.addr_mode = AddrMode::Accum;
+    }
 
     fn Imm(&mut self, bus: &mut Bus) {
         let fetched = self.pc_advance(bus);
@@ -230,7 +232,9 @@ impl Cpu {
     fn Indirect(&mut self, bus: &mut Bus) { unimplemented!() }
 
     // Instructions
-    fn XXX(&mut self, bus: &mut Bus) { unimplemented!(); }
+    fn XXX(&mut self, bus: &mut Bus) {
+        self.NOP(bus);
+    }
 
     /// Add with Carry
     fn ADC(&mut self, bus: &mut Bus) {
@@ -266,7 +270,13 @@ impl Cpu {
         self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
-    fn ASL(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Shift Left one bit
+    fn ASL(&mut self, bus: &mut Bus) {
+        let operand = self.fetch(bus) << 1;
+        self.store(operand, bus);
+        self.reg.P.zero = operand == 0;
+        self.reg.P.negative = (operand & 0x80) != 0;
+    }
 
     /// Branch if Carry Clear
     fn BCC(&mut self, bus: &mut Bus) {
@@ -320,7 +330,18 @@ impl Cpu {
         }
     }
 
-    fn BRK(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Force Interrupt
+    fn BRK(&mut self, bus: &mut Bus) {
+        self.reg.P.brk = true;
+        let lo = (self.reg.PC & 0xFF) as u8;
+        let hi = ((self.reg.PC >> 8) & 0xFF) as u8;
+        self.push_stack(bus, hi);
+        self.push_stack(bus, lo);
+        self.push_stack(bus, (&self.reg.P).into());
+        let hi = bus.read(0xFFFE) as u16;
+        let lo = bus.read(0xFFFF) as u16;
+        self.reg.PC = (hi << 8) | lo;
+    }
 
     /// Branch if Overflow Clear
     fn BVC(&mut self, bus: &mut Bus) {
@@ -346,7 +367,10 @@ impl Cpu {
         self.reg.P.decimal = false;
     }
 
-    fn CLI(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Clear Interrupt Disable
+    fn CLI(&mut self, bus: &mut Bus) {
+        self.reg.P.interrupt = false;
+    }
 
     /// Clear Overflow Flag
     fn CLV(&mut self, bus: &mut Bus) {
@@ -479,14 +503,19 @@ impl Cpu {
         self.reg.P.negative = (fetched & 0x80) != 0;
     }
 
-    fn LSR(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Logical Shift Right
+    fn LSR(&mut self, bus: &mut Bus) {
+        let operand = (self.fetch(bus) >> 1) & 0x7F;
+        self.reg.P.carry = (operand & 1) == 1;
+        self.reg.P.zero = operand == 0;
+        self.reg.P.negative = (operand & 0x80) != 0;
+        self.store(operand, bus);
+    }
 
     /// No Operation
     fn NOP(&mut self, _bus: &mut Bus) {
 
     }
-
-    fn OR(&mut self, bus: &mut Bus) { unimplemented!(); }
 
     /// Logical Inclusive OR
     fn ORA(&mut self, bus: &mut Bus) {
@@ -522,9 +551,37 @@ impl Cpu {
         self.reg.P = self.pop_stack(bus).into();
     }
 
-    fn ROL(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn ROR(&mut self, bus: &mut Bus) { unimplemented!(); }
-    fn RTI(&mut self, bus: &mut Bus) { unimplemented!(); }
+    /// Rotate Left
+    fn ROL(&mut self, bus: &mut Bus) {
+        let operand = self.fetch(bus);
+        self.reg.P.carry = (operand & 080) == 1;
+
+        let operand = operand << 1;
+        self.reg.P.zero = operand == 0;
+        self.reg.P.negative = (operand & 0x80) != 0;
+        self.store(operand, bus);
+    }
+
+    /// Rotate Right
+    fn ROR(&mut self, bus: &mut Bus) {
+        let operand = self.fetch(bus);
+        self.reg.P.carry = (operand & 1) == 1;
+
+        let carry_bit = self.reg.P.carry as u8;
+        let operand = (operand >> 1) | (carry_bit << 7);
+        self.reg.P.zero = operand == 0;
+        self.reg.P.negative = (operand & 0x80) != 0;
+        self.store(operand, bus);
+
+    }
+
+    /// Return from Interrupt
+    fn RTI(&mut self, bus: &mut Bus) {
+        self.reg.P = self.pop_stack(bus).into();
+        let lo = self.pop_stack(bus) as u16;
+        let hi = self.pop_stack(bus) as u16;
+        self.reg.PC = (hi << 8) | lo;
+    }
 
     /// Return from Subroutine
     fn RTS(&mut self, bus: &mut Bus) {
