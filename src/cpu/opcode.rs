@@ -111,19 +111,33 @@ impl Display for OpData {
 }
 
 #[derive(Clone, Copy)]
-pub struct Opcode {
+pub struct Opcode<'a> {
     pub value: u8,
     pub mnemonic: &'static str,
     // pub address_mode: AddrMode,
-    pub address_mode_fn: fn(&mut Cpu, &mut Bus)->(),
-    pub op_fn: fn(&mut Cpu, &mut Bus)->(),
+    pub address_mode_fn: fn(&mut Cpu<'a>, &mut Bus)->(),
+    pub op_fn: fn(&mut Cpu<'a>, &mut Bus)->(),
     pub len: u8,
     pub cycles: u8,
-    pub cycles_added: u8,
+    // 1: +1 possible penalty, 2: +2 indirect only
+    pub cycle_penalty_category: u8,
     pub legal: bool,
 }
 
-pub fn create_opcode_table() -> Box<[Opcode]> {
+impl Opcode<'_> {
+    pub(crate) fn cycle_penalty(&self) -> u8 {
+        if self.cycle_penalty_category == 0 { return 0; }
+
+        match self.mnemonic {
+            "ASL" | "DEC" | "INC" | "LSR" |
+            "ROL" | "ROR" | "STA" => 0, 
+            _ => 1
+        }
+    }
+
+}
+
+pub fn create_opcode_table<'a>() -> Box<[Opcode<'a>]> {
     let mut table = Vec::new();
     table.reserve(OPCODE_COUNT);
     add_all_ops(&mut table);

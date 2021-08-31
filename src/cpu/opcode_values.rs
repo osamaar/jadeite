@@ -14,7 +14,7 @@ macro_rules! add_op {
             op_fn: Cpu::$m,
             len: $l,
             cycles: $cy,
-            cycles_added: $ca,
+            cycle_penalty_category: $ca,
             legal: match $mstr {
                 "XXX" => false,
                 _ => true,
@@ -40,8 +40,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x0d,  ORA,  Absolute, 3, 4, 0);
     add_op!(table, 0x0e,  ASL,  Absolute, 3, 6, 0);
     add_op!(table, 0x0f,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x10,  BPL,  Relative, 2, 2, 1);
-    add_op!(table, 0x11,  ORA,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0x10,  BPL,  Relative, 2, 2, 2);
+    add_op!(table, 0x11,  ORA,  IndIdxY , 2, 5, 1);
     add_op!(table, 0x12,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x13,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x14,  XXX,  Implied , 1, 2, 0);
@@ -49,11 +49,11 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x16,  ASL,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0x17,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x18,  CLC,  Implied , 1, 2, 0);
-    add_op!(table, 0x19,  ORA,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0x19,  ORA,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0x1a,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x1b,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x1c,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x1d,  ORA,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0x1d,  ORA,  IdxAbsX , 3, 4, 1);
     add_op!(table, 0x1e,  ASL,  IdxAbsX , 3, 7, 0);
     add_op!(table, 0x1f,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x20,  JSR,  Absolute, 3, 6, 0);
@@ -72,8 +72,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x2d,  AND,  Absolute, 3, 4, 0);
     add_op!(table, 0x2e,  ROL,  Absolute, 3, 6, 0);
     add_op!(table, 0x2f,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x30,  BMI,  Relative, 2, 2, 1);
-    add_op!(table, 0x31,  AND,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0x30,  BMI,  Relative, 2, 2, 2);
+    add_op!(table, 0x31,  AND,  IndIdxY , 2, 5, 1);
     add_op!(table, 0x32,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x33,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x34,  XXX,  Implied , 1, 2, 0);
@@ -81,11 +81,11 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x36,  ROL,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0x37,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x38,  SEC,  Implied , 1, 2, 0);
-    add_op!(table, 0x39,  AND,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0x39,  AND,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0x3a,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x3b,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x3c,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x3d,  AND,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0x3d,  AND,  IdxAbsX , 3, 4, 1);
     add_op!(table, 0x3e,  ROL,  IdxAbsX , 3, 7, 0);
     add_op!(table, 0x3f,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x40,  RTI,  Implied , 1, 6, 0);
@@ -104,8 +104,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x4d,  EOR,  Absolute, 3, 4, 0);
     add_op!(table, 0x4e,  LSR,  Absolute, 3, 6, 0);
     add_op!(table, 0x4f,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x50,  BVC,  Relative, 2, 2, 1);
-    add_op!(table, 0x51,  EOR ,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0x50,  BVC,  Relative, 2, 2, 2);
+    add_op!(table, 0x51,  EOR ,  IndIdxY , 2, 5, 1);
     add_op!(table, 0x52,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x53,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x54,  XXX,  Implied , 1, 2, 0);
@@ -113,11 +113,11 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x56,  LSR,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0x57,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x58,  CLI,  Implied , 1, 2, 0);
-    add_op!(table, 0x59,  EOR,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0x59,  EOR,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0x5a,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x5b,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x5c,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x5d,  EOR,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0x5d,  EOR,  IdxAbsX , 3, 4, 1);
     add_op!(table, 0x5e,  LSR,  IdxAbsX , 3, 7, 0);
     add_op!(table, 0x5f,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x60,  RTS,  Implied , 1, 6, 0);
@@ -136,8 +136,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x6d,  ADC,  Absolute, 3, 4, 0);
     add_op!(table, 0x6e,  ROR,  Absolute, 3, 6, 0);
     add_op!(table, 0x6f,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x70,  BVS,  Relative, 2, 2, 1);
-    add_op!(table, 0x71,  ADC,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0x70,  BVS,  Relative, 2, 2, 2);
+    add_op!(table, 0x71,  ADC,  IndIdxY , 2, 5, 1);
     add_op!(table, 0x72,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x73,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x74,  XXX,  Implied , 1, 2, 0);
@@ -145,11 +145,11 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x76,  ROR,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0x77,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x78,  SEI,  Implied , 1, 2, 0);
-    add_op!(table, 0x79,  ADC,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0x79,  ADC,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0x7a,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x7b,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x7c,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x7d,  ADC,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0x7d,  ADC,  IdxAbsX , 3, 4, 1);
     add_op!(table, 0x7e,  ROR,  IdxAbsX , 3, 7, 0);
     add_op!(table, 0x7f,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x80,  XXX,  Implied , 1, 2, 0);
@@ -168,7 +168,7 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0x8d,  STA,  Absolute, 3, 4, 0);
     add_op!(table, 0x8e,  STX,  Absolute, 3, 4, 0);
     add_op!(table, 0x8f,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0x90,  BCC,  Relative, 2, 2, 1);
+    add_op!(table, 0x90,  BCC,  Relative, 2, 2, 2);
     add_op!(table, 0x91,  STA,  IndIdxY , 2, 6, 0);
     add_op!(table, 0x92,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0x93,  XXX,  Implied , 1, 2, 0);
@@ -200,8 +200,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xad,  LDA,  Absolute, 3, 4, 0);
     add_op!(table, 0xae,  LDX,  Absolute, 3, 4, 0);
     add_op!(table, 0xaf,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0xb0,  BCS,  Relative, 2, 2, 1);
-    add_op!(table, 0xb1,  LDA,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0xb0,  BCS,  Relative, 2, 2, 2);
+    add_op!(table, 0xb1,  LDA,  IndIdxY , 2, 5, 1);
     add_op!(table, 0xb2,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xb3,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xb4,  LDY,  IdxZPX  , 2, 4, 0);
@@ -209,12 +209,12 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xb6,  LDX,  IdxZPY  , 2, 4, 0);
     add_op!(table, 0xb7,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xb8,  CLV,  Implied , 1, 2, 0);
-    add_op!(table, 0xb9,  LDA,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0xb9,  LDA,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0xba,  TSX,  Implied , 1, 2, 0);
     add_op!(table, 0xbb,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0xbc,  LDY,  IdxAbsX , 3, 4, 1);
-    add_op!(table, 0xbd,  LDA,  IdxAbsX , 3, 4, 2);
-    add_op!(table, 0xbe,  LDX,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0xbc,  LDY,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0xbd,  LDA,  IdxAbsX , 3, 4, 1);
+    add_op!(table, 0xbe,  LDX,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0xbf,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xc0,  CPY,  Imm     , 2, 2, 0);
     add_op!(table, 0xc1,  CMP,  IdxIndX , 2, 6, 0);
@@ -232,8 +232,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xcd,  CMP,  Absolute, 3, 4, 0);
     add_op!(table, 0xce,  DEC,  Absolute, 3, 6, 0);
     add_op!(table, 0xcf,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0xd0,  BNE,  Relative, 2, 2, 1);
-    add_op!(table, 0xd1,  CMP,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0xd0,  BNE,  Relative, 2, 2, 2);
+    add_op!(table, 0xd1,  CMP,  IndIdxY , 2, 5, 1);
     add_op!(table, 0xd2,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xd3,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xd4,  XXX,  Implied , 1, 2, 0);
@@ -241,7 +241,7 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xd6,  DEC,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0xd7,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xd8,  CLD,  Implied , 1, 2, 0);
-    add_op!(table, 0xd9,  CMP,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0xd9,  CMP,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0xda,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xdb,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xdc,  XXX,  Implied , 1, 2, 0);
@@ -264,8 +264,8 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xed,  SBC,  Absolute, 3, 4, 0);
     add_op!(table, 0xee,  INC,  Absolute, 3, 6, 0);
     add_op!(table, 0xef,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0xf0,  BEQ,  Relative, 2, 2, 1);
-    add_op!(table, 0xf1,  SBC,  IndIdxY , 2, 5, 2);
+    add_op!(table, 0xf0,  BEQ,  Relative, 2, 2, 2);
+    add_op!(table, 0xf1,  SBC,  IndIdxY , 2, 5, 1);
     add_op!(table, 0xf2,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xf3,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xf4,  XXX,  Implied , 1, 2, 0);
@@ -273,11 +273,11 @@ pub fn add_all_ops(table: &mut Vec<Opcode>) {
     add_op!(table, 0xf6,  INC,  IdxZPX  , 2, 6, 0);
     add_op!(table, 0xf7,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xf8,  SED,  Implied , 1, 2, 0);
-    add_op!(table, 0xf9,  SBC,  IdxAbsY , 3, 4, 2);
+    add_op!(table, 0xf9,  SBC,  IdxAbsY , 3, 4, 1);
     add_op!(table, 0xfa,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xfb,  XXX,  Implied , 1, 2, 0);
     add_op!(table, 0xfc,  XXX,  Implied , 1, 2, 0);
-    add_op!(table, 0xfd,  SBC,  IdxAbsX , 3, 4, 2);
+    add_op!(table, 0xfd,  SBC,  IdxAbsX , 3, 4, 1);
     add_op!(table, 0xfe,  INC,  IdxAbsX , 3, 7, 0);
     add_op!(table, 0xff,  XXX,  Implied , 1, 2, 0);
 }

@@ -4,35 +4,44 @@
 mod opcode;
 mod opcode_values;
 
-use core::panic;
-use std::{fmt::{Debug, Display}, num::Wrapping};
+use std::fmt::{Debug, Display};
+use std::io::Write;
+use std::num::Wrapping;
 
 use crate::Bus;
 use self::opcode::{AddrMode, OpData, Opcode};
 
-pub struct Cpu {
+pub struct Cpu<'a> {
     pub reg: Reg,
     pub cycles: u8,
+    pub extra_cycles: u8,
     pub ops: usize,
 
     clock_count: usize,
     addr_target: u16,
     this_op: OpData,
 
-    opcode_table: Box<[Opcode]>,
+    opcode_table: Box<[Opcode<'a>]>,
+    debug_out: Option<Box<&'a mut dyn Write>>,
 }
 
-impl Cpu {
+impl<'a> Cpu<'a> {
     pub fn new() -> Self {
         Self {
             reg: Default::default(),
             opcode_table: opcode::create_opcode_table(),
             cycles: 0,
+            extra_cycles: 0,
             ops: 0,
             addr_target: 0,
             clock_count: 0,
             this_op: Default::default(),
+            debug_out: None,
         }
+    }
+
+    pub fn debug_to(&mut self, d: &'a mut dyn Write) {
+        self.debug_out = Some(Box::new(d));
     }
 
     pub fn pc_advance(&mut self, bus: &mut Bus) -> u8 {
@@ -71,14 +80,19 @@ impl Cpu {
 
         (op.address_mode_fn)(self, bus);
 
-        println!(
-            "{:36}{}  CYC:{:_>6}    {:08b}",
-            self.this_op, registers, clock_count, p
-        );
+        if let Some(out) = &mut self.debug_out {
+            writeln!(
+                out,
+                "{:36}{}  CYC:{:_>6}    {:08b}",
+                self.this_op, registers, clock_count, p
+            ).unwrap();
+        }
 
         (op.op_fn)(self, bus);
 
         self.cycles += op.cycles;
+        self.cycles += self.extra_cycles * op.cycle_penalty();
+        self.extra_cycles = 0;
         self.ops += 1;
     }
     
@@ -170,14 +184,14 @@ impl Cpu {
 
     fn branch(&mut self, bus: &mut Bus) {
         // Jump happened
-        self.cycles += 1;
+        self.extra_cycles += 1;
 
         let page_pc = self.reg.PC & 0xff00;
         let page_target = self.addr_target & 0xff00;
 
         if page_pc != page_target {
             // Page borders crossed
-            self.cycles += 1;
+            self.extra_cycles += 1;
         }
 
         self.reg.PC = self.addr_target;
@@ -216,7 +230,7 @@ impl Cpu {
     /// Indexed Zero Page [ZP, Y]
     fn IdxZPY(&mut self, bus: &mut Bus) {
         let base = self.pc_advance(bus) as u16;
-        let offset = self.reg.X as u16;
+        let offset = self.reg.Y as u16;
         self.addr_target = ((base + offset) & 0xFF) as u16;
         self.this_op.addr_mode = AddrMode::ZP(base as u8);
     }
@@ -229,6 +243,8 @@ impl Cpu {
         let offset = self.reg.X as u16;
         self.addr_target = base + offset;
         self.this_op.addr_mode = AddrMode::IdxAbsX(base);
+        let extra = (base & 0xFF00) != (self.addr_target & 0xFF00);
+        self.extra_cycles = extra.into();
     }
 
     /// Indexed Absolute [ABS, Y]
@@ -239,6 +255,8 @@ impl Cpu {
         let offset = self.reg.Y as u16;
         self.addr_target = base.wrapping_add(offset);
         self.this_op.addr_mode = AddrMode::IdxAbsY(base);
+        let extra = (base & 0xFF00) != (self.addr_target & 0xFF00);
+        self.extra_cycles = extra.into();
     }
 
     fn Implied(&mut self, _bus: &mut Bus) {
@@ -263,9 +281,9 @@ impl Cpu {
     fn IdxIndX(&mut self, bus: &mut Bus) {
         let base = self.pc_advance(bus) as u16;
         let offset = self.reg.X as u16;
-        let loc_zp = (base + offset) &0xFF;
+        let loc_zp = (base + offset) & 0xFF;
         let lo = bus.read(loc_zp) as u16;
-        let hi = bus.read(loc_zp + 1) as u16;
+        let hi = bus.read((loc_zp + 1) & 0xFF) as u16;
         self.addr_target = (hi << 8) | lo;
         self.this_op.addr_mode = AddrMode::IdxIndX(base as u8);
     }
@@ -274,11 +292,14 @@ impl Cpu {
     fn IndIdxY(&mut self, bus: &mut Bus) {
         let loc_zp = self.pc_advance(bus) as u16;
         let lo = bus.read(loc_zp) as u16;
-        let hi = bus.read(loc_zp + 1) as u16;
+        let loc_1 = (loc_zp + 1) & 0xFF;
+        let hi = bus.read((loc_zp + 1) & 0xFF) as u16;
         let base = (hi << 8) | lo;
         let offset = self.reg.Y as u16;
         self.addr_target = base.wrapping_add(offset);
         self.this_op.addr_mode = AddrMode::IndIdxY(loc_zp as u8);
+        let extra = (base & 0xFF00) != (self.addr_target & 0xFF00);
+        self.extra_cycles = extra.into();
     }
 
     /// Absolute Indirect [(IND, X)] [JMP (IND) Only]
@@ -341,7 +362,9 @@ impl Cpu {
 
     /// Shift Left one bit
     fn ASL(&mut self, bus: &mut Bus) {
-        let operand = self.fetch(bus) << 1;
+        let operand = self.fetch(bus);
+        self.reg.P.carry = (operand & 0x80) != 0;
+        let operand = operand << 1;
         self.store(operand, bus);
         self.reg.P.zero = operand == 0;
         self.reg.P.negative = (operand & 0x80) != 0;
@@ -476,7 +499,7 @@ impl Cpu {
 
     /// Decrement Memory
     fn DEC(&mut self, bus: &mut Bus) {
-        let m = self.fetch(bus).wrapping_add(1);
+        let m = self.fetch(bus).wrapping_sub(1);
         self.reg.P.zero = m == 0;
         self.reg.P.negative = (m & 0x80) != 0;
         self.store(m, bus);
@@ -574,8 +597,9 @@ impl Cpu {
 
     /// Logical Shift Right
     fn LSR(&mut self, bus: &mut Bus) {
-        let operand = (self.fetch(bus) >> 1) & 0x7F;
+        let operand = self.fetch(bus);
         self.reg.P.carry = (operand & 1) == 1;
+        let operand = (operand >> 1) & 0x7F;
         self.reg.P.zero = operand == 0;
         self.reg.P.negative = (operand & 0x80) != 0;
         self.store(operand, bus);
@@ -617,15 +641,19 @@ impl Cpu {
 
     /// Pull Processor Status
     fn PLP(&mut self, bus: &mut Bus) {
-        self.reg.P = self.pop_stack(bus).into();
+        // Ignore bit 4 and 5 of pulled value
+        // https://wiki.nesdev.com/w/index.php?title=Status_flags#The_B_flag
+        let old: u8 = u8::from(&self.reg.P) & 0b0011_0000;
+        let new: u8  = self.pop_stack(bus) & 0b1100_1111;
+        self.reg.P = (new | old).into();
     }
 
     /// Rotate Left
     fn ROL(&mut self, bus: &mut Bus) {
         let operand = self.fetch(bus);
-        self.reg.P.carry = (operand & 080) == 1;
-
-        let operand = operand << 1;
+        let old_carry = self.reg.P.carry as u8;
+        self.reg.P.carry = (operand & 0x80) != 0;
+        let operand = (operand << 1) | old_carry;
         self.reg.P.zero = operand == 0;
         self.reg.P.negative = (operand & 0x80) != 0;
         self.store(operand, bus);
@@ -634,10 +662,9 @@ impl Cpu {
     /// Rotate Right
     fn ROR(&mut self, bus: &mut Bus) {
         let operand = self.fetch(bus);
+        let old_carry = self.reg.P.carry as u8;
         self.reg.P.carry = (operand & 1) == 1;
-
-        let carry_bit = self.reg.P.carry as u8;
-        let operand = (operand >> 1) | (carry_bit << 7);
+        let operand = (operand >> 1) | (old_carry << 7);
         self.reg.P.zero = operand == 0;
         self.reg.P.negative = (operand & 0x80) != 0;
         self.store(operand, bus);
@@ -822,7 +849,7 @@ impl From<u8> for RegStatus {
     }
 }
 
-impl Debug for Cpu {
+impl Debug for Cpu<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cpu")
             .field("reg", &self.reg)
@@ -832,7 +859,7 @@ impl Debug for Cpu {
     }
 }
 
-impl Display for Cpu {
+impl Display for Cpu<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const W: usize = 4;
         const WL: usize = W + 2;

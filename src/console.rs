@@ -4,7 +4,7 @@ use crate::{Bus, Cart, Cpu};
 
 #[derive(Debug)]
 pub struct Console<'a> {
-    pub cpu: Cpu,
+    pub cpu: Cpu<'a>,
     pub bus: Bus<'a>,
 }
 
