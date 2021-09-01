@@ -68,10 +68,10 @@ impl<'a> DebugOut<'a> {
 
                 match next {
                     Ok(_) => {
-                        println!("{}   {}", self.line, "[  OK   ]");
+                        println!("{}  {}", self.line, "[  OK   ]");
                     },
                     Err(_) => {
-                        print!("{}   {}", self.line, "[ ERROR ]");
+                        print!("{}  {}", self.line, "[ ERROR ]");
                         if !self.error_state {
                             print!(" <------ FIRST ERROR HERE");
                         }

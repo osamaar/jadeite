@@ -80,11 +80,14 @@ impl<'a> Cpu<'a> {
 
         (op.address_mode_fn)(self, bus);
 
+        let err0 = bus.read(0x02);
+        let err1 = bus.read(0x03);
+
         if let Some(out) = &mut self.debug_out {
             writeln!(
                 out,
-                "{:36}{}  CYC:{:_>6}    {:08b}",
-                self.this_op, registers, clock_count, p
+                "{:36}{}  CYC:{:_>6}  {:08b}  [{:02X} {:02X}]",
+                self.this_op, registers, clock_count, p, err0, err1
             ).unwrap();
         }
 
