@@ -1,9 +1,11 @@
 mod debug;
+mod window;
 
 use std::{fs::File, io::{Read, stdout}};
 
 use jadeite::{Console, Cart};
 use debug::DebugOut;
+use window::JWindow;
 
 fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
@@ -22,8 +24,14 @@ fn main() -> Result<(), ()> {
 
     // println!("{}", nes);
 
+    let mut win = JWindow::create();
+
+    let mut counter = 0;
+
     loop {
         nes.next();
+        win.update(counter);
+        counter += 1;
 
         // let mut s = String::new();
         // nes.bus.print_page(&mut s, 0x0100).unwrap();
