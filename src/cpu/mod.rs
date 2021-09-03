@@ -326,7 +326,7 @@ impl<'a> Cpu<'a> {
     // Illegal instruction
     fn XXX(&mut self, bus: &mut Bus) {
         unimplemented!();
-        self.NOP(bus);
+        // self.NOP(bus);
     }
 
     /// Add with Carry
