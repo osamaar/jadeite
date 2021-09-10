@@ -5,7 +5,7 @@ mod cpu;
 mod cart;
 mod mapper;
 
-pub use bus::*;
-pub use console::*;
-pub use cpu::*;
-pub use cart::*;
+pub use self::bus::*;
+pub use self::console::*;
+pub use self::cpu::*;
+pub use self::cart::*;
