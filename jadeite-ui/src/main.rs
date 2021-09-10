@@ -24,13 +24,19 @@ fn main() -> Result<(), ()> {
 
     // println!("{}", nes);
 
-    let mut win = JWindow::create();
+    let mut win = JWindow::new();
 
     let mut counter = 0;
 
     loop {
-        nes.next();
+        // nes.next();
+
         win.update(counter);
+
+        if win.is_done() {
+            break Ok(())
+        }
+
         counter += 1;
 
         // let mut s = String::new();
