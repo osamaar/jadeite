@@ -1,11 +1,15 @@
 mod debug;
 mod window;
+mod config;
+mod global_state;
+mod text;
 
 use std::{fs::File, io::{Read, stdout}};
 
 use jadeite::{Console, Cart};
 use debug::DebugOut;
 use window::JWindow;
+use global_state::GlobalState;
 
 fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
@@ -24,7 +28,8 @@ fn main() -> Result<(), ()> {
 
     // println!("{}", nes);
 
-    let mut win = JWindow::new();
+    let mut global_state = GlobalState::init();
+    let mut win = JWindow::new(&global_state);
 
     let mut counter = 0;
 
@@ -32,6 +37,10 @@ fn main() -> Result<(), ()> {
         // nes.next();
 
         win.update(counter);
+
+        for event in global_state.event_pump.poll_iter() {
+            let _processed = win.process_event(&event);
+        }
 
         if win.is_done() {
             break Ok(())
