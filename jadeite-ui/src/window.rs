@@ -1,61 +1,51 @@
 #![allow(dead_code, unused)]
 
 use sdl2::event::Event;
-use sdl2::rect::Rect;
 use sdl2::keyboard::Keycode;
-use sdl2::video::Window;
-use sdl2::render::{Canvas, Texture};
 use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::rect::Rect;
+use sdl2::render::{Canvas, Texture};
+use sdl2::video::Window;
 
 use crate::global_state::GlobalState;
-use crate::text::TextRenderer;
 
-const WIDTH: u32 = 960;
-const HEIGHT: u32 = 540;
-
-pub struct JWindow<'a> {
+pub struct JWindow {
     canvas: Canvas<Window>,
-    text_renderer: TextRenderer<'a>,
     screen_tex: Texture,
-    pixel_buffer: Box<[u8]>,
+    screen_buf: PixelBuffer,
     bg_color: Color,
     done: bool,
 }
 
-impl JWindow<'_> {
-    pub fn new(global: &GlobalState) -> Self {
-        let context = &global.context;
+impl JWindow {
+    pub fn new(global: &GlobalState, w: u32, h: u32) -> Self {
         let video = &global.video;
 
-        let win = video.window("Jadeite", WIDTH, HEIGHT).build().unwrap();
+        let win = video.window("Jadeite", w, h).build().unwrap();
         let canvas = win.into_canvas().accelerated().build().unwrap();
-        let text_renderer = TextRenderer::new("resources/Tajawal-Regular.ttf");
+        let screen_buf = PixelBuffer::new(w, h);
 
         let mut screen_tex = canvas
             .create_texture(
                 PixelFormatEnum::RGBA8888,
                 sdl2::render::TextureAccess::Streaming,
-                WIDTH,
-                HEIGHT,
+                w,
+                h,
             )
             .unwrap();
 
         screen_tex.set_blend_mode(sdl2::render::BlendMode::Blend);
 
-        screen_tex.with_lock(Rect::new(0, 0, WIDTH, HEIGHT), |buf, pitch| {
+        screen_tex.with_lock(Rect::new(0, 0, w, h), |buf, _| {
             buf.fill(0x00);
-        });
-
-        let pixel_buffer = vec![0u8; (WIDTH*HEIGHT*4) as usize];
-        let pixel_buffer = pixel_buffer.into_boxed_slice();
+        }).unwrap();
 
         let bg_color = Color::RGBA(0x3B, 0x3B, 0x3A, 0xFF);
 
         Self {
             canvas,
-            text_renderer,
             screen_tex,
-            pixel_buffer,
+            screen_buf,
             bg_color,
             done: false,
         }
@@ -75,7 +65,7 @@ impl JWindow<'_> {
                 self.done = true;
                 true
             }
-            _ => false
+            _ => false,
         }
     }
 
@@ -83,17 +73,15 @@ impl JWindow<'_> {
         self.done
     }
 
-    pub fn update(&mut self, counter: usize) {
+    pub fn update(&mut self) {}
+
+    pub fn clear(&mut self) {
+        self.canvas.set_draw_color(self.bg_color);
+        self.canvas.clear();
     }
 
     pub fn draw(&mut self) {
-        self.canvas.set_draw_color(self.bg_color);
-        self.canvas.clear();
-        self.pixel_buffer.fill(0);
-
-        self.overlay();
-
-        blit_pixel_buffer(&mut self.screen_tex, &self.pixel_buffer);
+        self.screen_buf.blit_to_texture(&mut self.screen_tex);
 
         let q = self.screen_tex.query();
         let bb = (0i32, 0i32, q.width, q.height);
@@ -102,20 +90,40 @@ impl JWindow<'_> {
         self.canvas.present();
     }
 
-    fn overlay(&mut self) {
-        self.text_renderer.render_text(
-            "Jadeite NES Emulator",
-            &mut self.pixel_buffer,
-            WIDTH as _,
-            100,
-            100
-        );
+    pub fn buffer(&mut self) -> &mut PixelBuffer {
+        &mut self.screen_buf
     }
 }
 
-fn blit_pixel_buffer(dst: &mut Texture, src: &[u8]) {
-    dst.with_lock(Rect::new(0, 0, WIDTH, HEIGHT), |buf, pitch| {
-        buf.copy_from_slice(src.as_ref());
-    });
+pub struct PixelBuffer {
+    data: Box<[u8]>,
+    w: u32,
+    h: u32,
+}
 
+impl PixelBuffer {
+    pub fn new(w: u32, h: u32) -> Self {
+        let data = vec![0u8; (w*h*4) as usize];
+        let data = data.into_boxed_slice();
+        Self { data, w, h }
+    }
+
+    pub fn width(&self) -> u32 { self.w }
+    pub fn height(&self) -> u32 { self.h }
+    pub fn pixels(&self) -> &[u8] { &*self.data }
+    pub fn pixels_mut(&mut self) -> &mut [u8] { &mut *self.data }
+
+    fn blit_to_texture(&self, dst: &mut Texture) {
+        dst.with_lock(Rect::new(0, 0, self.w, self.h), |buf, pitch| {
+            buf.copy_from_slice(self.pixels());
+        });
+    }
+
+    pub fn blit_to_buffer(&self, dst: &mut [u8]) {
+        dst.copy_from_slice(self.pixels());
+    }
+
+    pub fn clear(&mut self) {
+        self.data.fill(0x00);
+    }
 }

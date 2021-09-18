@@ -4,12 +4,17 @@ mod config;
 mod global_state;
 mod text;
 
-use std::{fs::File, io::{Read, stdout}};
+use std::fs::File;
+use std::io::Read;
 
 use jadeite::{Console, Cart};
 use debug::DebugOut;
-use window::JWindow;
+use text::TextRenderer;
+use window::{JWindow, PixelBuffer};
 use global_state::GlobalState;
+
+const WIDTH: u32 = 960;
+const HEIGHT: u32 = 540;
 
 fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
@@ -29,31 +34,47 @@ fn main() -> Result<(), ()> {
     // println!("{}", nes);
 
     let mut global_state = GlobalState::init();
-    let mut win = JWindow::new(&global_state);
 
-    let mut counter = 0;
+    let mut overlay = PixelBuffer::new(WIDTH, HEIGHT);
+    let mut win = JWindow::new(&global_state, WIDTH, HEIGHT);
+    let text_renderer = TextRenderer::new("resources/OpenSans-Regular.ttf");
 
     loop {
-        // nes.next();
-
-        win.update(counter);
-
+        // Input
         for event in global_state.event_pump.poll_iter() {
             let _processed = win.process_event(&event);
         }
 
-        if win.is_done() {
-            break Ok(())
-        }
-
-        counter += 1;
-
+        // Update
+        // nes.next();
         // let mut s = String::new();
         // nes.bus.print_page(&mut s, 0x0100).unwrap();
         // println!("{}", s);
-
         // print!("{}", nes.cpu);
+
+        // Draw
+        win.clear();
+
+        update_overlay(&mut overlay, &text_renderer);
+        overlay.blit_to_buffer(win.buffer().pixels_mut());
+
+        win.draw();
+
+        if win.is_done() {
+            break Ok(())
+        }
     }
 
     // Ok(())
+}
+
+fn update_overlay(pb: &mut PixelBuffer, tr: &TextRenderer) {
+    pb.clear();
+
+    tr.render_text(
+        "Jadeite NES Emulator",
+        pb,
+        100,
+        100,
+    );
 }

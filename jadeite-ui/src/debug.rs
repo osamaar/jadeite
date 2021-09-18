@@ -1,4 +1,5 @@
-use std::{io::{ErrorKind, Read, Write, stdout}, str::Lines};
+use std::io::{ErrorKind, Read, Write};
+use std::str::Lines;
 
 pub(crate) struct DebugOut<'a> {
     log: Lines<'a>,
