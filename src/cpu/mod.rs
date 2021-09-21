@@ -17,7 +17,7 @@ pub struct Cpu<'a> {
     pub extra_cycles: u8,
     pub ops: usize,
 
-    clock_count: usize,
+    pub clock_count: usize,
     addr_target: u16,
     this_op: OpData,
 

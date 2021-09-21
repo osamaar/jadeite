@@ -17,7 +17,17 @@ impl TextRenderer<'_> {
     }
 
     pub fn render_text(&self, text: &str, pb: &mut PixelBuffer, x: i32, y: i32) {
-        let scale = Scale::uniform(64.0);
+        let h = 16;
+        let mut y = y;
+
+        for line in text.lines() {
+            self.render_line(line, pb, x, y);
+            y += h;
+        }
+    }
+
+    pub fn render_line(&self, text: &str, pb: &mut PixelBuffer, x: i32, y: i32) {
+        let scale = Scale::uniform(16.0);
         let color = (200, 200, 200);
         let vmetrics = self.font.v_metrics(scale);
         let line_height = (vmetrics.ascent - vmetrics.descent).ceil() as u32;
@@ -26,6 +36,13 @@ impl TextRenderer<'_> {
 
         for glyph in glyphs {
             if let Some(bb) = glyph.pixel_bounding_box() {
+                if (bb.min.x < 0) |
+                    (bb.min.y < 0) |
+                    (bb.max.x >= pb.width() as i32) |
+                    (bb.max.y >= pb.height() as i32) {
+                        continue;
+                    }
+                  
                 glyph.draw(|x, y, v| {
                     let xx = x + bb.min.x as u32;
                     let yy = y + bb.min.y as u32;
