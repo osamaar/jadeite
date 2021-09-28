@@ -100,11 +100,8 @@ impl<'a> Cpu<'a> {
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
-        let mut remaining = self.cycles;
-
-        while remaining > 0 {
+        while self.cycles > 0 {
             self.step(bus);
-            remaining -= 1;
         }
     }
     
