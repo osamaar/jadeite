@@ -1,17 +1,19 @@
-use std::fmt::{Debug, Write};
+use std::{cell::RefCell, fmt::{Debug, Write}, rc::Rc};
 
-use crate::Cart;
+use crate::{Cart, Ppu};
 
 pub struct Bus <'a> {
     ram: Box<[u8]>,
     cart: Option<&'a mut Cart>,
+    ppu: Rc<RefCell<Ppu>>,
 }
 
 impl <'a> Bus <'a> {
-    pub fn new() -> Self {
+    pub fn new(ppu: Rc<RefCell<Ppu>>) -> Self {
         Self {
             ram: vec![0x0u8; 0x800].into_boxed_slice(),
             cart: None,
+            ppu,
         }
     }
 
@@ -23,12 +25,20 @@ impl <'a> Bus <'a> {
         let cart = self.cart.as_ref().unwrap();
 
         let value = match addr {
-            // RAM
-            0x00..=0x7ff => {
-                self.ram[addr as usize]
+            // RAM & Mirros
+            0x0000..=0x01fff => {
+                self.ram[(addr&0x07ff) as usize]
             },
 
-            // Cartridge
+            // PPU Registers & Mirrors
+            0x2000..=0x3fff => {
+                let addr_adj = 0x2000 | (addr&0x0007);
+                let value = (*self.ppu).borrow().read(addr_adj);
+                // println!("= Read: @{:04X} (ADJ: {:04X}) = {:02X}", addr, addr_adj, value);
+                value
+            },
+
+            // Cartridge ROM
             0x8000..=0xffff => {
                 cart.cpu_read(addr)
             },
@@ -45,9 +55,16 @@ impl <'a> Bus <'a> {
         // println!("+ WRITE: @{:04X} = {:02X}", addr, value);
 
         match addr {
-            // RAM
-            0x00..=0x7ff => {
-                self.ram[addr as usize] = value;
+            // RAM & Mirros
+            0x0000..=0x01fff => {
+                self.ram[(addr&0x07ff) as usize] = value;
+            },
+
+            // PPU Registers & Mirrors
+            0x2000..=0x3fff => {
+                let addr_adj = 0x2000 | (addr&0x0007);
+                (*self.ppu).borrow_mut().write(addr_adj, value);
+                // println!("= Write: @{:04X} (ADJ: {:04X}) = {:02X}", addr, addr_adj, value);
             },
 
             // Cartridge

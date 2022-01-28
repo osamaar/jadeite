@@ -1,19 +1,22 @@
-use std::fmt::Display;
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
-use crate::{Bus, Cart, Cpu};
+use crate::{Bus, Cart, Cpu, Ppu};
 
 #[derive(Debug)]
 pub struct Console<'a> {
     pub cpu: Cpu<'a>,
     pub bus: Bus<'a>,
+    pub ppu: Rc<RefCell<Ppu>>,
 }
 
 impl<'a> Console<'a> {
     pub fn new() -> Self {
-        Self {
-            cpu: Cpu::new(),
-            bus: Bus::new(),
-        }
+        let cpu = Cpu::new();
+        let ppu = RefCell::new(Ppu::default());
+        let ppu = Rc::new(ppu);
+        let bus = Bus::new(ppu.clone());
+
+        Self { cpu, ppu, bus }
     }
 
     pub fn insert_cart(&mut self, cart: &'a mut Cart) {
@@ -29,11 +32,27 @@ impl<'a> Console<'a> {
     }
 
     pub fn step(&mut self) {
-        self.cpu.step(&mut self.bus)
+        {
+            let mut ppu = (*self.ppu).borrow_mut();
+            ppu.step(&mut self.bus);
+            ppu.step(&mut self.bus);
+            ppu.step(&mut self.bus);
+        }
+        self.cpu.step(&mut self.bus);
     }
 
     pub fn next(&mut self) {
-        self.cpu.next(&mut self.bus)
+        {
+            let mut ppu = (*self.ppu).borrow_mut();
+        
+            for _ in 0..self.cpu.cycles {
+                ppu.step(&mut self.bus);
+                ppu.step(&mut self.bus);
+                ppu.step(&mut self.bus);
+            }
+        }
+
+        self.cpu.next(&mut self.bus);
     }
 }
 
