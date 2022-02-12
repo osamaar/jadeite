@@ -9,7 +9,7 @@ use std::io::Write;
 use std::num::Wrapping;
 
 use crate::Bus;
-use self::opcode::{AddrMode, OpData, Opcode};
+use self::opcode::{AddrMode, Instruction, Opcode};
 
 pub struct Cpu<'a> {
     pub reg: Reg,
@@ -19,7 +19,7 @@ pub struct Cpu<'a> {
 
     pub clock_count: usize,
     addr_target: u16,
-    this_op: OpData,
+    this_op: Instruction,
 
     opcode_table: Box<[Opcode<'a>]>,
     debug_out: Option<Box<&'a mut dyn Write>>,
@@ -65,8 +65,6 @@ impl<'a> Cpu<'a> {
         // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
         self.reg.P.unused = true;
 
-        self.this_op.pc = self.reg.PC;
-
         let byte = self.pc_advance(bus);
 
         let op = self.opcode_table[byte as usize];
@@ -83,11 +81,13 @@ impl<'a> Cpu<'a> {
         let err0 = bus.read(0x02);
         let err1 = bus.read(0x03);
 
+        // write!(out, "{:04X}", self.pc)?;
+
         if let Some(out) = &mut self.debug_out {
             writeln!(
                 out,
-                "{:36}{}  CYC:{:_>6}  {:08b}  [{:02X} {:02X}]",
-                self.this_op, registers, clock_count, p, err0, err1
+                "{:04X}{:32}{}  CYC:{:_>6}  {:08b}  [{:02X} {:02X}]",
+                self.reg.PC, self.this_op, registers, clock_count, p, err0, err1
             ).unwrap();
         }
 

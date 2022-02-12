@@ -25,17 +25,16 @@ pub enum AddrMode {
 
 /// For logging
 #[derive(Clone, Copy)]
-pub(super) struct OpData {
-    pub pc: u16,
+pub(super) struct Instruction {
+    // pub pc: u16,
     pub opcode: u8,
     pub mnemonic: &'static str,
     pub addr_mode: AddrMode,
 }
 
-impl Default for OpData {
+impl Default for Instruction {
     fn default() -> Self {
         Self {
-            pc: Default::default(),
             opcode: Default::default(),
             mnemonic: Default::default(),
             addr_mode: AddrMode::Implied,
@@ -43,12 +42,11 @@ impl Default for OpData {
     }
 }
 
-impl Display for OpData {
+impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = String::new();
         let mut asm = String::new();
 
-        write!(out, "{:04X}", self.pc)?;
         write!(out, "{:4}{:02X} ", "", self.opcode)?;
 
         match self.addr_mode {
