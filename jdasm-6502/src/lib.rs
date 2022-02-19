@@ -79,37 +79,59 @@ pub enum Mnemonic {
     XXX,    // Illigal Opcode
 }
 
-/// Disassemble whole data slice and return a `Vec<Instruction>` plus a result with the
-/// remaining un-disassembled tail of the data slice in case of error.
-pub fn disasm(mut data: &[u8]) -> (Vec<Instruction>, Result<(), &[u8]>) {
-    let mut output = vec![];
-    let mut offset: usize = 0;
+/// Disassemble whole data slice and return a `Vec<Instruction>`. Stops at the
+/// end or when next bytes don't make sense. Therefore, it doesn't guarantee
+/// that all of `data` is read. To count bytes read, add `.offset` + `.size` of
+/// last instruction in returned `Vec`.
+pub fn disasm_all(data: &[u8]) -> Vec<Instruction> {
+    disasm(data).collect()
+}
 
-    while let Ok(mut instr) = disasm_one(data) {
-        instr.offset = offset;
-        offset += instr.op.size as usize;
-        data = &data[instr.op.size as usize..];
-        output.push(instr);
-    } 
+pub struct AsmIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
 
-    let tail = match data.len() {
-        0 => Ok(()),
-        _ => Err(data)
-    };
+impl<'a> AsmIter<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        AsmIter { data, offset: 0 }
+    }
 
-    (output, tail)
+    pub fn bytes_read(&self) -> usize {
+        self.offset
+    }
+}
+
+impl Iterator for AsmIter<'_> {
+    type Item = Instruction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Ok(mut instr) = disasm_one(self.data) {
+            instr.offset = self.offset;
+            self.offset += instr.op.size as usize;
+            self.data = &self.data[instr.op.size as usize..];
+            Some(instr)
+        } else {
+            None
+        }
+    }
+}
+
+/// Return an itarator over disassembled instructinos from `data`.
+pub fn disasm(data: &[u8]) -> AsmIter {
+    AsmIter::new(data)
 }
 
 /// Disassemble one instructino from data slice.
-pub fn disasm_one(data: &[u8]) -> Result<Instruction, &[u8]> {
+pub fn disasm_one(data: &[u8]) -> Result<Instruction, ()> {
     if data.len() == 0 {
-        return Err(data);
+        return Err(());
     }
 
     let op = OPTABLE[data[0] as usize];
     
     match op.size {
-        n if n as usize > data.len() => Err(data),
+        n if n as usize > data.len() => Err(()),
         1 => Ok(Instruction{ op, operand: Operand::Null, offset: 0 }),
         2 => Ok(Instruction{ op, operand: Operand::Byte(data[1]), offset: 0}),
         3 => {
@@ -124,7 +146,7 @@ pub fn disasm_one(data: &[u8]) -> Result<Instruction, &[u8]> {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use super::*;
 
     fn hex_to_bin(s: &str) -> Vec<u8> {
             s.split_ascii_whitespace()
@@ -144,7 +166,22 @@ mod tests {
     #[test]
     fn disasm_ok() {
         let prog = hex_to_bin("a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02");
-        let (instr, tail) = disasm(&prog);
+        let mut iter = disasm(&prog);
+        let f = |i| format!("{}", i);
+
+        assert_eq!(iter.next().map(f), Some("0000: LDA 01".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0002: STA 0200".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0005: LDA 05".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0007: STA 0201".to_owned()));
+        assert_eq!(iter.next().map(f), Some("000a: LDA 08".to_owned()));
+        assert_eq!(iter.next().map(f), Some("000c: STA 0202".to_owned()));
+        assert_eq!(iter.next().map(f), None);
+    }
+
+    #[test]
+    fn disasm_all_ok() {
+        let prog = hex_to_bin("a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02");
+        let instr  = disasm_all(&prog);
         let lines: Vec<_> = instr.iter().map(|ln| format!("{}", ln)).collect();
 
         assert_eq!(lines[0], "0000: LDA 01");
@@ -153,6 +190,5 @@ mod tests {
         assert_eq!(lines[3], "0007: STA 0201");
         assert_eq!(lines[4], "000a: LDA 08");
         assert_eq!(lines[5], "000c: STA 0202");
-        assert_eq!(tail, Ok(()))
     }
 }
