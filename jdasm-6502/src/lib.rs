@@ -22,17 +22,22 @@ pub struct Instruction {
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // todo!()
         let operands = match self.operand {
             Operand::Null => "".to_owned(),
             Operand::Byte(b) => format!("{:02x}", b),
             Operand::Word(w) => format!("{:04x}", w),
         };
 
+        let decorator = match self.op.addr_mode {
+            AddrMode::Accum => "A",
+            AddrMode::Imm | AddrMode::ZP => "#$",
+            _ => "$",
+        };
+
         write!(
             f,
-            "{:04x}: {:?} {}",
-            self.offset, self.op.mnemonic, operands
+            "{:04x}: {:?} {}{}",
+            self.offset, self.op.mnemonic, decorator, operands
         )?;
 
         Ok(())
@@ -160,7 +165,7 @@ mod tests {
         let instr = disasm_one(&prog);
         let s = format!("{}", instr.unwrap());
 
-        assert_eq!(s, "0000: LDA 01");
+        assert_eq!(s, "0000: LDA #$01");
     }
 
     #[test]
@@ -169,12 +174,12 @@ mod tests {
         let mut iter = disasm(&prog);
         let f = |i| format!("{}", i);
 
-        assert_eq!(iter.next().map(f), Some("0000: LDA 01".to_owned()));
-        assert_eq!(iter.next().map(f), Some("0002: STA 0200".to_owned()));
-        assert_eq!(iter.next().map(f), Some("0005: LDA 05".to_owned()));
-        assert_eq!(iter.next().map(f), Some("0007: STA 0201".to_owned()));
-        assert_eq!(iter.next().map(f), Some("000a: LDA 08".to_owned()));
-        assert_eq!(iter.next().map(f), Some("000c: STA 0202".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0000: LDA #$01".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0002: STA $0200".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0005: LDA #$05".to_owned()));
+        assert_eq!(iter.next().map(f), Some("0007: STA $0201".to_owned()));
+        assert_eq!(iter.next().map(f), Some("000a: LDA #$08".to_owned()));
+        assert_eq!(iter.next().map(f), Some("000c: STA $0202".to_owned()));
         assert_eq!(iter.next().map(f), None);
     }
 
@@ -184,11 +189,11 @@ mod tests {
         let instr  = disasm_all(&prog);
         let lines: Vec<_> = instr.iter().map(|ln| format!("{}", ln)).collect();
 
-        assert_eq!(lines[0], "0000: LDA 01");
-        assert_eq!(lines[1], "0002: STA 0200");
-        assert_eq!(lines[2], "0005: LDA 05");
-        assert_eq!(lines[3], "0007: STA 0201");
-        assert_eq!(lines[4], "000a: LDA 08");
-        assert_eq!(lines[5], "000c: STA 0202");
+        assert_eq!(lines[0], "0000: LDA #$01");
+        assert_eq!(lines[1], "0002: STA $0200");
+        assert_eq!(lines[2], "0005: LDA #$05");
+        assert_eq!(lines[3], "0007: STA $0201");
+        assert_eq!(lines[4], "000a: LDA #$08");
+        assert_eq!(lines[5], "000c: STA $0202");
     }
 }
