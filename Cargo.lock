@@ -107,6 +107,9 @@ dependencies = [
 [[package]]
 name = "jadeite"
 version = "0.1.0"
+dependencies = [
+ "jdasm-6502",
+]
 
 [[package]]
 name = "jadeite-ui"

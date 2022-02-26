@@ -6,6 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+jdasm-6502 = { version = "0.1.0", path = "./jdasm-6502" }
 
 [workspace]
 members = ["jadeite-ui", "jdasm-6502"]

@@ -8,8 +8,16 @@ use std::fmt::{Debug, Display};
 use std::io::Write;
 use std::num::Wrapping;
 
+use jdasm_6502::{disasm_one, ByteSource};
+
 use crate::Bus;
 use self::opcode::{AddrMode, Instruction, Opcode};
+
+impl ByteSource for Bus<'_> {
+    fn read_byte(&self, offset: u16) -> Result<u8, ()> {
+        Ok(self.read(offset))
+    }
+}
 
 pub struct Cpu<'a> {
     pub reg: Reg,
@@ -64,6 +72,10 @@ impl<'a> Cpu<'a> {
     fn process_instruction(&mut self, bus: &mut Bus) {
         // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
         self.reg.P.unused = true;
+
+        let instr = disasm_one(bus, self.reg.PC).unwrap();
+        println!("{}", instr);
+        // self.reg.PC += instr.op.size as u16;
 
         let byte = self.pc_advance(bus);
 
