@@ -28,8 +28,8 @@ fn main() -> Result<(), ()> {
     f.read_to_string(&mut s).map_err(|_| panic!("hurr durr!"))?;
 
     // let mut out = DebugOut::new(&s);
-    // let mut out = &mut std::io::stdout();
-    // nes.cpu.debug_to(&mut out);
+    let mut out = &mut std::io::stdout();
+    nes.cpu.debug_to(&mut out);
 
     // println!("{}", nes);
 

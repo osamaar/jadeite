@@ -205,7 +205,7 @@ pub const OPTABLE: [Operation; 256] = [
     op!(0xb9, Mnemonic::LDA, AddrMode::IdxAbsY , 3, 4, 1),
     op!(0xba, Mnemonic::TSX, AddrMode::Implied , 1, 2, 0),
     op!(0xbb, Mnemonic::XXX, AddrMode::Implied , 1, 2, 0),
-    op!(0xbc, Mnemonic::LDY, AddrMode::IdxAbsX , 3, 4, 2),
+    op!(0xbc, Mnemonic::LDY, AddrMode::IdxAbsX , 3, 4, 1),
     op!(0xbd, Mnemonic::LDA, AddrMode::IdxAbsX , 3, 4, 1),
     op!(0xbe, Mnemonic::LDX, AddrMode::IdxAbsY , 3, 4, 1),
     op!(0xbf, Mnemonic::XXX, AddrMode::Implied , 1, 2, 0),
