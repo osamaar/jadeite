@@ -18,7 +18,7 @@ impl ByteSource for Bus<'_> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum InstructionTarget {
     /// No explicit target. Target is implied.
     Null,
@@ -36,8 +36,9 @@ enum InstructionTarget {
 pub struct Cpu<'a> {
     pub reg: Reg,
     pub cycles: u8,
-    pub extra_cycles: u8,
     pub ops: usize,
+    pub extra_cycles_branch: u8,
+    pub extra_cycles_page_bounds: u8,
 
     pub clock_count: usize,
     debug_out: Option<Box<&'a mut dyn Write>>,
@@ -49,12 +50,13 @@ impl<'a> Cpu<'a> {
             reg: Default::default(),
             // opcode_table: opcode::create_opcode_table(),
             cycles: 0,
-            extra_cycles: 0,
             ops: 0,
             // addr_target: 0,
             clock_count: 0,
             // this_op: Default::default(),
             debug_out: None,
+            extra_cycles_branch: 0,
+            extra_cycles_page_bounds: 0,
         }
     }
 
@@ -75,27 +77,22 @@ impl<'a> Cpu<'a> {
             self.process_instruction(bus);
         }
 
-        self.clock_count += 1;
-
     }
 
     fn process_instruction(&mut self, bus: &mut Bus) {
         // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
         self.reg.P.unused = true;
+        self.extra_cycles_branch = 0;
+        self.extra_cycles_page_bounds = 0;
 
         let instr = disasm_one(bus, self.reg.PC).unwrap();
         // println!("{}", instr);
         self.reg.PC += instr.op.size as u16;
 
-        let clock_count = self.clock_count;
+        // Debug output.
         let registers = self.reg;
-
         let p: u8 = (&registers.P).into();
-
-
-        // (op.address_mode_fn)(self, bus);
-        let target = addr_handler(&instr.op)(self, bus, instr);
-
+        let clock = self.clock_count;
         let err0 = bus.read(0x02);
         let err1 = bus.read(0x03);
 
@@ -105,21 +102,19 @@ impl<'a> Cpu<'a> {
                 // "{:04X}{:<32}{}  CYC:{:_>6}  {:08b}  [{:02X} {:02X}]",
                 // instr.offset, instr, registers, clock_count, p, err0, err1
                 "{:<32}{}  CYC:{:_>6}  {:08b}  [{:02X} {:02X}]",
-                instr, registers, clock_count, p, err0, err1
+                instr, registers, clock, p, err0, err1
             ).unwrap();
         }
 
+        // (op.address_mode_fn)(self, bus);
+        let target = addr_handler(&instr.op)(self, bus, instr);
         op_handler(&instr.op)(self, bus, target);
 
         self.cycles += instr.op.cycles;
-
-        // A hack to ignore ops with 2 potential extra cycles.
-        // Instead, they're handled in branch().
-        let extra_cycles = instr.op.extra_cycles%2;
-
-        self.cycles += self.extra_cycles * extra_cycles;
-        self.extra_cycles = 0;
+        self.cycles += self.extra_cycles_page_bounds * instr.op.extra_cycles;
+        self.cycles += self.extra_cycles_branch;
         self.ops += 1;
+        self.clock_count += self.cycles as usize;
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -136,7 +131,8 @@ impl<'a> Cpu<'a> {
     }
     
     pub fn reset_to(&mut self, bus: &mut Bus, offset: u16) {
-        self.cycles = 8;
+        self.cycles = 7;
+        self.clock_count = self.cycles as usize;
         self.reg.P.interrupt = true;
         self.reg.PC = offset;
 
@@ -189,14 +185,14 @@ impl<'a> Cpu<'a> {
         };
 
         // Jump happened
-        self.extra_cycles += 1;
+        self.extra_cycles_branch = 1;
 
-        let page_pc = self.reg.PC & 0xff00;
+        let page_pc = (self.reg.PC - 0) & 0xff00;
         let page_target = addr_target & 0xff00;
 
         if page_pc != page_target {
             // Page borders crossed
-            self.extra_cycles += 1;
+            self.extra_cycles_branch += 1;
         }
 
         self.reg.PC = addr_target;
@@ -263,7 +259,7 @@ impl<'a> Cpu<'a> {
         let offset = self.reg.X as u16;
         let addr_target = base + offset;
         let extra = (base & 0xFF00) != (addr_target & 0xFF00);
-        self.extra_cycles = extra.into();
+        self.extra_cycles_page_bounds = extra.into();
         InstructionTarget::MemoryAddress(addr_target)
     }
 
@@ -277,7 +273,7 @@ impl<'a> Cpu<'a> {
         let offset = self.reg.Y as u16;
         let addr_target = base.wrapping_add(offset);
         let extra = (base & 0xFF00) != (addr_target & 0xFF00);
-        self.extra_cycles = extra.into();
+        self.extra_cycles_page_bounds = extra.into();
         InstructionTarget::MemoryAddress(addr_target)
     }
 
@@ -329,7 +325,7 @@ impl<'a> Cpu<'a> {
         let offset = self.reg.Y as u16;
         let addr_target = base.wrapping_add(offset);
         let extra = (base & 0xFF00) != (addr_target & 0xFF00);
-        self.extra_cycles = extra.into();
+        self.extra_cycles_page_bounds = extra.into();
         InstructionTarget::MemoryAddress(addr_target)
     }
 
