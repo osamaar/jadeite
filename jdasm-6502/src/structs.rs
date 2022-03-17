@@ -41,8 +41,8 @@ impl Display for Instruction {
         };
 
         let s = format!(
-            "{:4X}: {:?} {}{}",
-            self.offset, self.op.mnemonic, decorator, operands
+            "{:04X}: {:02X} {:?} {}{}",
+            self.offset, self.op.opcode, self.op.mnemonic, decorator, operands
         );
 
         s.fmt(f)

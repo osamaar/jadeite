@@ -29,14 +29,14 @@ impl<'a> DebugOut<'a> {
         let line = &mut self.line;
 
         let pc = &line[..4];
-        let opcode = &line[8..9];
-        let mnemonic = &line[20..23];
-        let registers = &line[36..61];
-        let cycles = &line[67..73];
+        let opcode = &line[6..8];
+        let mnemonic = &line[9..12];
+        let registers = &line[32..57];
+        let cycles = &line[63..69];
         let cycles = cycles.trim_start_matches("_");
 
         let pc_g = &good[..4];
-        let opcode_g = &good[6..7];
+        let opcode_g = &good[6..8];
         let mnemonic_g = &good[16..19];
         let registers_g = &good[48..73];
         let cycles_g = &good[90..];
