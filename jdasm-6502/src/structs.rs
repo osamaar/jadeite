@@ -29,20 +29,25 @@ impl Display for Instruction {
             Operand::Word(w) => format!("{:04X}", w),
         };
 
-        let decorator = match self.op.addr_mode {
-            AddrMode::Accum => "A",
-            AddrMode::Imm | AddrMode::ZP => "#$",
-            _ => "$",
-        };
-
-        let decorator = match self.operand {
-            Operand::Null => "",
-            _ => decorator,
+        let decorated = match self.op.addr_mode {
+            AddrMode::Accum => format!("{}", operands),
+            AddrMode::Imm => format!("#${}", operands),
+            AddrMode::Absolute => format!("${}", operands),
+            AddrMode::ZP => format!("${}", operands),
+            AddrMode::IdxZPX => format!("${},X", operands),
+            AddrMode::IdxZPY => format!("${},Y", operands),
+            AddrMode::IdxAbsX => format!("${},X", operands),
+            AddrMode::IdxAbsY => format!("${},Y", operands),
+            AddrMode::Implied => format!(""),
+            AddrMode::Relative => format!("${}", operands),
+            AddrMode::IdxIndX => format!("(${},X)", operands),
+            AddrMode::IndIdxY => format!("(${}),Y", operands),
+            AddrMode::Indirect => format!("(${})", operands),
         };
 
         let s = format!(
-            "{:04X}: {:02X} {:?} {}{}",
-            self.offset, self.op.opcode, self.op.mnemonic, decorator, operands
+            "{:04X}: {:02X} {:?} {}",
+            self.offset, self.op.opcode, self.op.mnemonic, decorated
         );
 
         s.fmt(f)
