@@ -12,7 +12,7 @@ pub struct Console<'a> {
 impl<'a> Console<'a> {
     pub fn new() -> Self {
         let cpu = Cpu::new();
-        let ppu = RefCell::new(Ppu::default());
+        let ppu = RefCell::new(Ppu::new());
         let ppu = Rc::new(ppu);
         let bus = Bus::new(ppu.clone());
 
@@ -33,12 +33,20 @@ impl<'a> Console<'a> {
 
     pub fn step(&mut self) {
         {
-            let mut ppu = (*self.ppu).borrow_mut();
-            ppu.step(&mut self.bus);
-            ppu.step(&mut self.bus);
-            ppu.step(&mut self.bus);
+            self.ppu_step();
+            self.ppu_step();
+            self.ppu_step();
         }
         self.cpu.step(&mut self.bus);
+    }
+
+    fn ppu_step(&mut self) {
+            let mut ppu = (*self.ppu).borrow_mut();
+            ppu.step(&mut self.bus);
+            if ppu.nmi_signal {
+                self.cpu.nmi_triggered = true;
+                ppu.nmi_signal = false;
+            }
     }
 
     pub fn next(&mut self) {

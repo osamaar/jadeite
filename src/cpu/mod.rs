@@ -39,6 +39,7 @@ pub struct Cpu<'a> {
     pub ops: usize,
     pub extra_cycles_branch: u8,
     pub extra_cycles_page_bounds: u8,
+    pub nmi_triggered: bool,
 
     pub clock_count: usize,
     debug_out: Option<Box<&'a mut dyn Write>>,
@@ -57,6 +58,7 @@ impl<'a> Cpu<'a> {
             debug_out: None,
             extra_cycles_branch: 0,
             extra_cycles_page_bounds: 0,
+            nmi_triggered: false,
         }
     }
 
@@ -71,12 +73,18 @@ impl<'a> Cpu<'a> {
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        self.cycles -= 1;
+        if self.nmi_triggered {
+            self.nmi(bus);
+            self.nmi_triggered = false;
+        } else {
+            self.cycles -= 1;
 
-        if self.cycles == 0 {
-            self.process_instruction(bus);
+            if self.cycles == 0 {
+                self.process_instruction(bus);
+            }
         }
 
+        self.clock_count += self.cycles as usize;
     }
 
     fn process_instruction(&mut self, bus: &mut Bus) {
@@ -114,7 +122,6 @@ impl<'a> Cpu<'a> {
         self.cycles += self.extra_cycles_page_bounds * instr.op.extra_cycles;
         self.cycles += self.extra_cycles_branch;
         self.ops += 1;
-        self.clock_count += self.cycles as usize;
     }
     
     pub fn next(&mut self, bus: &mut Bus) {
@@ -155,6 +162,21 @@ impl<'a> Cpu<'a> {
         self.reg.S += 1;
         let addr = 0x0100 | self.reg.S as u16;
         bus.read(addr)
+    }
+
+    fn nmi(&mut self, bus: &mut Bus) {
+        // $FFFA $FFFB
+        let pc: u16 = self.reg.PC as u16;
+        self.push_stack(bus, pc.hi());
+        self.push_stack(bus, pc.lo());
+
+        let mut p = self.reg.P;
+        p.brk = false;
+        self.push_stack(bus, (&p).into());
+
+        let pcl = bus.read(0xFFFA) as u16;
+        let pch = bus.read(0xFFFB) as u16;
+        self.reg.PC = (pch << 8) | pcl;
     }
 
     /// Centralized op target access. All ops can use this to avoid switching

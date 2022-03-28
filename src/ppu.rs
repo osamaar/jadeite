@@ -1,41 +1,117 @@
 #![allow(unused_variables, dead_code)]
 
-use crate::Bus;
+use std::fmt::Debug;
+
+use crate::{Bus, palette::Palette};
 // #![allow(non_snake_case)]
 
-#[derive(Default, Debug)]
 pub struct Ppu {
+    /// `$2000` Write
     ppu_ctrl: RegPPUCtrl,
+    /// `$2001` Write
     ppu_mask: RegPPUMask,
+    /// `$2002` Read
     ppu_status: RegPPUStatus,
+    /// `$2003` Write
     oam_addr: u8,
-    ppu_scroll: u8,
-    ppu_addr: u8,
+
+    // `$2004` Read/Write
+    // OAM Data             
+ 
+    /// `$2005` Write (x2)
+    ppu_scroll: PPUScroll,
+    /// `$2006` Write (x2)
+    ppu_addr: PPUAddress,
+    /// `$2007` Read/Write
     ppu_data: u8,
+    /// `$4014` Write
     oam_dma: u8,
 
+    vram: [u8; 2048],
+    color_palette: Palette,
+    
+    clock_count: usize,
+    scanline: usize,
+    scanline_cycle: usize,
+
+    pub nmi_signal: bool,
 }
 
 impl Ppu {
-    // fn new() -> Self {
-    //     Self {
+    pub fn new() -> Self {
+        let color_palette = Palette::from_file(
+            "resources/ntscpalette.pal"
+        ).unwrap();
 
-    //     }
-    // }
-
+        Self {
+            ppu_ctrl: RegPPUCtrl::default(),
+            ppu_mask: RegPPUMask::default(),
+            ppu_status: RegPPUStatus::default(),
+            oam_addr: 0,
+            ppu_scroll: PPUScroll::default(),
+            ppu_addr: PPUAddress::default(),
+            ppu_data: 0,
+            oam_dma: 0,
+            vram: [0; 2048],
+            color_palette,
+            clock_count: 0,
+            scanline: 261,
+            scanline_cycle: 0,
+            nmi_signal: false,
+        }
+    }
+        
     pub fn step(&mut self, bus: &mut Bus) {
+        match self.scanline {
+            241 => {
+                if self.scanline_cycle == 1 {
+                    self.ppu_status.vblank = true;
+                    self.nmi_signal = self.ppu_status.vblank &&
+                        self.ppu_ctrl.nmi_enable;
+                }
+            },
+            261 => {
+                if self.scanline_cycle == 1 {
+                    self.ppu_status.vblank = false;
+                }
+            },
+            _ => {
+            }
+        }
 
+        // Generate NMI
+        // println!(
+        //     "{} {} vblnk:{} nmi_e:{} trig:{}",
+        //     self.scanline,
+        //     self.scanline_cycle,
+        //     self.ppu_status.vblank,
+        //     self.ppu_ctrl.nmi_enable,
+        //     self.nmi_signal
+        // );
+
+        self.clock_count += 1;
+        self.clock_count %= 262*340;
+
+        self.scanline_cycle += 1;
+        self.scanline_cycle %= 341;
+
+        self.scanline += (self.scanline_cycle == 0) as usize;
+        self.scanline %= 262;
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
+    pub fn read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x2000 => (&self.ppu_ctrl).into(),
-            0x2001 => (&self.ppu_mask).into(),
-            0x2002 => (&self.ppu_status).into(),
-            0x2003 => self.oam_addr,
-            0x2004 => self.ppu_data,
-            0x2005 => self.ppu_scroll,
-            0x2006 => self.ppu_addr,
+            0x2000 => unimplemented!(),
+            0x2001 => unimplemented!(),
+            0x2002 => {
+                let result = (&self.ppu_status).into();
+                self.ppu_status.vblank = false;
+                result
+            },
+            0x2003 => unimplemented!(),
+            0x2004 => unimplemented!(),
+            0x2005 => unimplemented!(),
+            0x2006 => unimplemented!(),
             0x2007 => self.ppu_data,
             _ => unreachable!()
         }
@@ -43,17 +119,34 @@ impl Ppu {
 
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
-            0x2000 => {todo!()},
-            0x2001 => {todo!()},
+            0x2000 => self.ppu_ctrl = value.into(),
+            0x2001 => self.ppu_mask = value.into(),
             0x2002 => {todo!()},
             0x2003 => {todo!()},
             0x2004 => {todo!()},
-            0x2005 => {todo!()},
-            0x2006 => {todo!()},
-            0x2007 => {todo!()},
+            0x2005 => self.ppu_scroll.store(value),
+            0x2006 => self.ppu_addr.store(value),
+            0x2007 => {
+                self.vram[self.ppu_addr.value as usize] = value;
+            },
             _ => unreachable!()
         }
 
+    }
+}
+
+impl Debug for Ppu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ppu")
+            .field("ppu_ctrl", &self.ppu_ctrl)
+            .field("ppu_mask", &self.ppu_mask)
+            .field("ppu_status", &self.ppu_status)
+            .field("oam_addr", &self.oam_addr)
+            .field("ppu_scroll", &self.ppu_scroll)
+            .field("ppu_addr", &self.ppu_addr)
+            .field("ppu_data", &self.ppu_data)
+            .field("oam_dma", &self.oam_dma)
+            .field("color_palette", &"<Color Palette>").finish()
     }
 }
 
@@ -109,6 +202,20 @@ impl From<&RegPPUCtrl> for u8 {
     }
 }
 
+impl From<u8> for RegPPUCtrl {
+    fn from(b: u8) -> Self {
+        Self {
+            nametable_select: b & 0b_0000_0011,
+            increment_mode: (b & 0b_0000_0100) != 0,
+            sprite_tile_select: (b & 0b_0000_1000) != 0,
+            bg_tile_select: (b & 0b_0001_0000) != 0,
+            sprite_height: (b & 0b_0010_0000) != 0,
+            ppu_master_slave: (b & 0b_0100_0000) != 0,
+            nmi_enable: (b & 0b_1000_0000) != 0,
+        }
+    }
+}
+
 /// ```text
 /// 7  bit  0
 /// ---- ----
@@ -149,6 +256,22 @@ impl From<&RegPPUMask> for u8 {
     }
 }
 
+impl From<u8> for RegPPUMask {
+    fn from(b: u8) -> Self {
+        Self {
+            greyscale: (b & 0b_0000_0001) != 0,
+            bg_left_col_enable: (b & 0b_0000_0010) != 0,
+            sprite_left_col_enable: (b & 0b_0000_0100) != 0,
+            bg_enable: (b & 0b_0000_1000) != 0,
+            sprite_enable: (b & 0b_0001_0000) != 0,
+            ce_r: (b & 0b_0010_0000) != 0,
+            ce_g: (b & 0b_0100_0000) != 0,
+            ce_b: (b & 0b_1000_0000) != 0,
+
+        }
+    }
+}
+
 /// Read resets write pair to `$2005`, `$2006`.
 /// ```text
 /// 7  bit  0
@@ -172,7 +295,7 @@ impl From<&RegPPUMask> for u8 {
 ///            line); cleared after reading $2002 and at dot 1 of the
 ///            pre-render line.
 /// ```
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct RegPPUStatus {
     /// `O`: Bit 5
     overflow: bool,
@@ -182,6 +305,12 @@ struct RegPPUStatus {
     vblank: bool,
 }
 
+impl Default for RegPPUStatus {
+    fn default() -> Self {
+        Self { overflow: Default::default(), sprite0_hit: Default::default(), vblank: true }
+    }
+}
+
 impl From<&RegPPUStatus> for u8 {
     fn from(val: &RegPPUStatus) -> Self {
         {
@@ -189,5 +318,46 @@ impl From<&RegPPUStatus> for u8 {
             ((val.sprite0_hit   as u8) << 6) |
             ((val.vblank        as u8) << 7)
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct PPUScroll {
+    pub x: u8,
+    pub y: u8,
+    counter: usize,
+}
+
+impl PPUScroll {
+    pub fn store(&mut self, b: u8) {
+        self.counter = (self.counter + 1) % 2;
+
+        match self.counter {
+            0 => self.x = b,
+            1 => self.y = b,
+            _ => unreachable!()
+        };
+
+        self.counter += 1;
+    }
+}
+
+#[derive(Debug, Default)]
+struct PPUAddress{
+    pub value: u16,
+    counter: u8,
+}
+
+impl PPUAddress {
+    pub fn store(&mut self, b: u8) {
+        self.counter = (self.counter + 1) % 2;
+
+        match self.counter {
+            0 => self.value |= (b as u16) << 8,
+            1 => self.value |= b as u16,
+            _ => unreachable!()
+        };
+
+        self.counter += 1;
     }
 }

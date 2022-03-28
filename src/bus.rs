@@ -33,7 +33,7 @@ impl <'a> Bus <'a> {
             // PPU Registers & Mirrors
             0x2000..=0x3fff => {
                 let addr_adj = 0x2000 | (addr&0x0007);
-                let value = (*self.ppu).borrow().read(addr_adj);
+                let value = (*self.ppu).borrow_mut().read(addr_adj);
                 // println!("= Read: @{:04X} (ADJ: {:04X}) = {:02X}", addr, addr_adj, value);
                 value
             },
@@ -41,6 +41,12 @@ impl <'a> Bus <'a> {
             // Cartridge ROM
             0x8000..=0xffff => {
                 cart.cpu_read(addr)
+            },
+
+            // APU & IO Registers
+            0x4000..=0x4017 => {
+                // TODO: Implement APU & IO.
+                0
             },
 
             a => panic!("Bus: Adressing nowhere: {:#06X}", a),
@@ -71,6 +77,12 @@ impl <'a> Bus <'a> {
             0x8000..=0xffff => {
                 cart.cpu_write(addr, value);
             },
+
+            // PPU Registers
+            0x4000..=0x4017 => {
+                // Does nothing.
+                // TODO: Implement audio.
+            }
 
             _ => unimplemented!()
         }

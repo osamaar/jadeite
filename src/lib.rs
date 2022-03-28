@@ -5,6 +5,7 @@ mod cpu;
 mod cart;
 mod mapper;
 mod ppu;
+mod palette;
 
 pub use self::bus::*;
 pub use self::console::*;
