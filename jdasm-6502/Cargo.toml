@@ -2,7 +2,16 @@
 name = "jdasm-6502"
 version = "0.1.0"
 edition = "2018"
+authors = ["Osama Arafa"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "3.1.12", features = ["derive"], optional = true }
+
+[features]
+cli = ["clap"]
+
+[[bin]]
+name = "jdasm-6502"
+required-features = ["cli"]
