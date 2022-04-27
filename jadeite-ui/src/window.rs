@@ -27,7 +27,7 @@ impl JWindow {
 
         let mut screen_tex = canvas
             .create_texture(
-                PixelFormatEnum::RGBA8888,
+                PixelFormatEnum::RGBA32,
                 sdl2::render::TextureAccess::Streaming,
                 w,
                 h,
@@ -78,6 +78,7 @@ impl JWindow {
     pub fn clear(&mut self) {
         self.canvas.set_draw_color(self.bg_color);
         self.canvas.clear();
+        self.screen_buf.clear();
     }
 
     pub fn draw(&mut self) {
@@ -123,7 +124,45 @@ impl PixelBuffer {
         dst.copy_from_slice(self.pixels());
     }
 
+    pub fn blit_to_buffer_with_alpha(&self, dst: &mut [u8]) {
+        // dst.copy_from_slice(self.pixels());
+
+        let len = self.data.len() / 4;
+
+        for i in 0..len {
+            let a = self.data[i + 3];
+
+            // dst[i]   = alpha_blend(self.data[i], dst[i], a);
+            // dst[i+1] = alpha_blend(self.data[i+1], dst[i+1], a);
+            // dst[i+2] = alpha_blend(self.data[i+2], dst[i+2], a);
+            // dst[i+3] = u8::max(a, dst[i+3]);
+
+            use crate::ablend;
+            dst[i] = ablend!(self.data[i], dst[i], a);
+            dst[i + 1] = ablend!(self.data[i + 1], dst[i + 1], a);
+            dst[i + 2] = ablend!(self.data[i + 2], dst[i + 2], a);
+            dst[i + 3] = u8::max(a, dst[i + 3]);
+
+            // dst[i]   = self.data[i];
+            // // dst[i+1] = self.data[i+1];
+            // // dst[i+2] = self.data[i+2];
+            // // dst[i+3] = u8::max(a, dst[i+3]);
+        }
+    }
+
     pub fn clear(&mut self) {
         self.data.fill(0x00);
     }
+}
+
+pub fn alpha_blend(pp: u8, qq: u8, aa: u8) -> u8 {
+    let (p, q, a) = (pp as f64, qq as f64, aa as f64 / 255.);
+    (p * a + q * (1. - a)) as u8
+}
+
+#[macro_export]
+macro_rules! ablend {
+    ($p:expr, $q:expr, $a:expr) => {
+        ($a as f64 / 255. * ($p as f64 - $q as f64) + $q as f64) as u8
+    };
 }

@@ -18,18 +18,19 @@ const HEIGHT: u32 = 540;
 
 fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
+    // let mut cart = Cart::read_file("resources/ex.nes").map_err(|_| ())?;
     let mut nes = Console::new();
     nes.insert_cart(&mut cart);
-    nes.reset_to(0xc000);
-    // nes.reset();
+    // nes.reset_to(0xc000);
+    nes.reset();
 
     let mut f = File::open("resources/nestest.log").unwrap();
     let mut s = String::new();
     f.read_to_string(&mut s).map_err(|_| panic!("hurr durr!"))?;
 
     // let mut out = DebugOut::new(&s);
-    let mut out = &mut std::io::stdout();
-    nes.cpu.debug_to(&mut out);
+    // let mut out = &mut std::io::stdout();
+    // nes.cpu.debug_to(&mut out);
 
     // println!("{}", nes);
 
@@ -58,18 +59,32 @@ fn main() -> Result<(), ()> {
             // print!("{}", nes.cpu);
         }
 
-
         // Draw
         win.clear();
+        let ppuout = &nes.ppu.borrow().output;
+        let buf = win.buffer();
+        let w = buf.width() as usize;
+        let win_pixels = win.buffer().pixels_mut();
+
+        for y in 0..240 {
+            for x in 0..256 {
+                let p = ppuout[y * 256 + x];
+
+                let i = y * w + x;
+                win_pixels[i * 4] = p.r;
+                win_pixels[i * 4 + 1] = p.g;
+                win_pixels[i * 4 + 2] = p.b;
+                win_pixels[i * 4 + 3] = p.a;
+            }
+        }
 
         update_overlay(&mut overlay, &text_renderer, &nes);
-        overlay.blit_to_buffer(win.buffer().pixels_mut());
+        overlay.blit_to_buffer_with_alpha(win_pixels);
 
         win.draw();
 
-
         if win.is_done() {
-            break Ok(())
+            break Ok(());
         }
     }
 

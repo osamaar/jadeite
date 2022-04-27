@@ -2,8 +2,12 @@
 
 use std::fmt::Debug;
 
-use crate::{Bus, palette::Palette};
+use crate::{palette::Palette, Cart};
 // #![allow(non_snake_case)]
+
+const OUTPUT_W: usize = 256;
+const OUTPUT_H: usize = 240;
+const OUTPUT_SIZE: usize = OUTPUT_W * OUTPUT_H;
 
 pub struct Ppu {
     /// `$2000` Write
@@ -16,8 +20,8 @@ pub struct Ppu {
     oam_addr: u8,
 
     // `$2004` Read/Write
-    // OAM Data             
- 
+    // OAM Data
+
     /// `$2005` Write (x2)
     ppu_scroll: PPUScroll,
     /// `$2006` Write (x2)
@@ -35,6 +39,7 @@ pub struct Ppu {
     scanline_cycle: usize,
 
     pub nmi_signal: bool,
+    pub output: Box<[Pixel]>,
 }
 
 impl Ppu {
@@ -58,16 +63,62 @@ impl Ppu {
             scanline: 261,
             scanline_cycle: 0,
             nmi_signal: false,
+            output: vec![Pixel::new(0x22, 0x22, 0x22, 0xff); OUTPUT_SIZE].into_boxed_slice(),
         }
     }
         
-    pub fn step(&mut self, bus: &mut Bus) {
+    pub fn step(&mut self, cart: &Cart) {
         match self.scanline {
             241 => {
                 if self.scanline_cycle == 1 {
+                    // DEBUG
+                    let mut tile_data = [0; 64];
+
+                    for ty in 0..16 {
+                        for tx in 0..16 {
+                            // left
+                            for i in 0..16 {
+                                // Left
+                                tile_data[i] = cart.ppu_read(((ty * 16 + tx) * 16 + i) as u16);
+                            }
+
+                            draw_tile(
+                                &tile_data,
+                                &mut self.output,
+                                (tx, ty),
+                                (0, 0),
+                                &self.color_palette,
+                            );
+
+                            // right
+                            for i in 0..16 {
+                                // Left
+                                tile_data[i] =
+                                    cart.ppu_read((((ty * 16 + tx) * 16 + i) | 0x1000) as u16);
+                            }
+
+                            draw_tile(
+                                &tile_data,
+                                &mut self.output,
+                                (tx, ty),
+                                (128, 0),
+                                &self.color_palette,
+                            );
+                        }
+                    }
+
+                    draw_palette(&mut self.output, &self.color_palette);
+
+                    // println!("{:#x?}", self.output
+                    //     .iter()
+                    //     .map(
+                    //         |x| (x.r as u32) << 3 | (x.g as u32) << 2 | (x.b as u32) << 1 | x.a as u32
+                    //     )
+                    //     .collect::<Vec<u32>>()
+                    // );
+
                     self.ppu_status.vblank = true;
-                    self.nmi_signal = self.ppu_status.vblank &&
-                        self.ppu_ctrl.nmi_enable;
+                    self.nmi_signal = self.ppu_status.vblank && self.ppu_ctrl.nmi_enable;
                 }
             },
             261 => {
@@ -90,7 +141,7 @@ impl Ppu {
         // );
 
         self.clock_count += 1;
-        self.clock_count %= 262*340;
+        self.clock_count %= 262*341;
 
         self.scanline_cycle += 1;
         self.scanline_cycle %= 341;
@@ -359,5 +410,72 @@ impl PPUAddress {
         };
 
         self.counter += 1;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Pixel {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl Pixel {
+    pub fn zeros() -> Self {
+        Self {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0xff,
+        }
+    }
+    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+}
+
+fn draw_tile(
+    tile_data: &[u8],
+    output: &mut Box<[Pixel]>,
+    tilexy: (usize, usize),
+    oxy: (usize, usize),
+    palette: &Palette,
+) {
+    let px = tilexy.0 * 8 + oxy.0;
+    let py = tilexy.1 * 8 + oxy.1;
+
+    for y in 0..8 {
+        for x in 0..8 {
+            let byte0 = tile_data[y];
+            let byte1 = tile_data[y + 8];
+
+            let shift = 7 - x;
+            let bit0 = 1 & (byte0 >> shift);
+            let bit1 = 1 & (byte1 >> shift);
+            let value = bit0 | (bit1 << 1);
+
+            let c = palette[value as usize];
+            output[(py + y) * OUTPUT_W + (px + x)] = Pixel::new(c.r, c.g, c.b, 0xff);
+        }
+    }
+}
+
+fn draw_palette(output: &mut Box<[Pixel]>, palette: &Palette) {
+    const SAMPLE_W: usize = 16;
+    const SAMPLE_H: usize = 8;
+
+    let total_x = 16 * SAMPLE_W;
+    let total_y = 4 * SAMPLE_H;
+
+    let ox = OUTPUT_W - total_x;
+    let oy = OUTPUT_H - total_y;
+
+    for y in 0..total_y {
+        for x in 0..total_x {
+            let c = palette[y / SAMPLE_H * 16 + x / SAMPLE_W];
+            // output[oy+y*OUTPUT_W + ox+x] = Pixel::new(c.r, c.g, c.b, 0xff);
+            output[(oy + y) * OUTPUT_W + ox + x] = Pixel::new(c.r, c.g, c.b, 0xff);
+        }
     }
 }

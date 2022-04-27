@@ -41,23 +41,20 @@ impl<'a> Console<'a> {
     }
 
     fn ppu_step(&mut self) {
-            let mut ppu = (*self.ppu).borrow_mut();
-            ppu.step(&mut self.bus);
-            if ppu.nmi_signal {
-                self.cpu.nmi_triggered = true;
-                ppu.nmi_signal = false;
-            }
+        let mut ppu = (*self.ppu).borrow_mut();
+        ppu.step(&mut self.bus.cart.as_ref().unwrap());
+
+        if ppu.nmi_signal {
+            self.cpu.nmi_triggered = true;
+            ppu.nmi_signal = false;
+        }
     }
 
     pub fn next(&mut self) {
-        {
-            let mut ppu = (*self.ppu).borrow_mut();
-        
-            for _ in 0..self.cpu.cycles {
-                ppu.step(&mut self.bus);
-                ppu.step(&mut self.bus);
-                ppu.step(&mut self.bus);
-            }
+        for _ in 0..self.cpu.cycles {
+            self.ppu_step();
+            self.ppu_step();
+            self.ppu_step();
         }
 
         self.cpu.next(&mut self.bus);
