@@ -4,7 +4,7 @@ use crate::{Cart, Ppu};
 
 pub struct Bus <'a> {
     ram: Box<[u8]>,
-    cart: Option<&'a mut Cart>,
+    pub cart: Option<&'a mut Cart>,
     ppu: Rc<RefCell<Ppu>>,
 }
 

@@ -52,11 +52,11 @@ impl TextRenderer<'_> {
 
                     let pixels = pb.pixels_mut();
 
-                    if let &[a, b, g, r] = &pixels[i..i+4] {
-                        pixels[i]   = u8::max(front,a);
+                    if let &[r, g, b, a] = &pixels[i..i+4] {
+                        pixels[i] = 255;
                         pixels[i+1] = 255;
                         pixels[i+2] = 255;
-                        pixels[i+3] = 255;
+                        pixels[i+3] = u8::max(front, a);
                     }
                 });
             }
