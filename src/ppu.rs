@@ -71,52 +71,8 @@ impl Ppu {
         match self.scanline {
             241 => {
                 if self.scanline_cycle == 1 {
-                    // DEBUG
-                    let mut tile_data = [0; 64];
-
-                    for ty in 0..16 {
-                        for tx in 0..16 {
-                            // left
-                            for i in 0..16 {
-                                // Left
-                                tile_data[i] = cart.ppu_read(((ty * 16 + tx) * 16 + i) as u16);
-                            }
-
-                            draw_tile(
-                                &tile_data,
-                                &mut self.output,
-                                (tx, ty),
-                                (0, 0),
-                                &self.color_palette,
-                            );
-
-                            // right
-                            for i in 0..16 {
-                                // Left
-                                tile_data[i] =
-                                    cart.ppu_read((((ty * 16 + tx) * 16 + i) | 0x1000) as u16);
-                            }
-
-                            draw_tile(
-                                &tile_data,
-                                &mut self.output,
-                                (tx, ty),
-                                (128, 0),
-                                &self.color_palette,
-                            );
-                        }
-                    }
-
-                    draw_palette(&mut self.output, &self.color_palette);
-
-                    // println!("{:#x?}", self.output
-                    //     .iter()
-                    //     .map(
-                    //         |x| (x.r as u32) << 3 | (x.g as u32) << 2 | (x.b as u32) << 1 | x.a as u32
-                    //     )
-                    //     .collect::<Vec<u32>>()
-                    // );
-
+                    // self.draw_debug(cart);
+                    self.draw_bg(cart);
                     self.ppu_status.vblank = true;
                     self.nmi_signal = self.ppu_status.vblank && self.ppu_ctrl.nmi_enable;
                 }
@@ -184,6 +140,126 @@ impl Ppu {
         }
 
     }
+
+    fn draw_debug(&mut self, cart: &Cart) {
+        let mut tile_data = [0; 64];
+        for ty in 0..16 {
+            for tx in 0..16 {
+                // left
+                for i in 0..16 {
+                    tile_data[i] = cart.ppu_read(0x2000 | ((ty * 16 + tx) * 16 + i) as u16);
+                }
+
+                draw_tile(
+                    &tile_data,
+                    &mut self.output,
+                    (tx, ty),
+                    (0, 0),
+                    &self.color_palette,
+                );
+
+                // right
+                for i in 0..16 {
+                    tile_data[i] =
+                        cart.ppu_read(0x2000 | (((ty * 16 + tx) * 16 + i) | 0x1000) as u16);
+                }
+
+                draw_tile(
+                    &tile_data,
+                    &mut self.output,
+                    (tx, ty),
+                    (128, 0),
+                    &self.color_palette,
+                );
+            }
+        }
+
+        draw_palette(&mut self.output, &self.color_palette);
+
+        // println!("{:#x?}", self.output
+        //     .iter()
+        //     .map(
+        //         |x| (x.r as u32) << 3 | (x.g as u32) << 2 | (x.b as u32) << 1 | x.a as u32
+        //     )
+        //     .collect::<Vec<u32>>()
+        // );
+    }
+
+    /// Read nametable byte, attribute table byte.
+    /// Fetch pattern table byte low/hi.
+    fn draw_bg(&mut self, cart: &Cart) {
+        // let mut v = 0;
+
+        for row in 0..OUTPUT_H {
+            for col in (0..OUTPUT_W).step_by(8) {
+                let coarse_x = (col/8) as u16;
+                let coarse_y = (row/8) as u16;
+                let fine_y = (row%8) as u16;
+                let pattern_table_half = self.ppu_ctrl.bg_table_select as u16;
+
+                // v := Current VRAM address (in name table):
+                // yyy NN YYYYY XXXXX
+                // ||| || ||||| +++++-- coarse X scroll
+                // ||| || +++++-------- coarse Y scroll
+                // ||| ++-------------- nametable select
+                // +++----------------- fine Y scroll
+                let v = coarse_x as u16
+                    | (coarse_y << 5)
+                    | (self.ppu_ctrl.nametable_select as u16) << 10
+                    | fine_y << 12;
+
+                // Read nametable byte.
+                let tile_addr = cart.ppu_read(
+                    0x2000 | (v & 0x0fff)
+                ) as u16;
+
+                // Fetch from attribute table.
+                let attr_addr = cart.ppu_read(
+                    0x23C0
+                    | (v & 0x0C00)
+                    | ((v >> 4) & 0x38)
+                    | ((v >> 2) & 0x07)
+                ) as u16;
+
+                // Read pattern table
+                // DCBA98 76543210
+                // ---------------
+                // 0HRRRR CCCCPTTT
+                // |||||| |||||+++- T: Fine Y offset, the row number within a tile
+                // |||||| ||||+---- P: Bit plane (0: "lower"; 1: "upper")
+                // |||||| ++++----- C: Tile column
+                // ||++++---------- R: Tile row
+                // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
+                // +--------------- 0: Pattern table is at $0000-$1FFF
+                let tile_sliver_lo = fine_y
+                    | 0 << 3
+                    | tile_addr << 4
+                    | pattern_table_half << 12
+                    | 0 << 13;
+
+                let tile_sliver_hi = fine_y
+                    | 1 << 3
+                    | tile_addr << 4
+                    | pattern_table_half << 12
+                    | 0 << 13;
+                
+                let attr = cart.ppu_read(attr_addr);
+
+                for i in 0..8 {
+                    let bit_lo = (tile_sliver_lo >> i) & 1;
+                    let bit_hi = (tile_sliver_hi >> i) & 1;
+                    let color_idx = (bit_hi << 1) & bit_lo;
+                    let shift = coarse_y%4 << 2
+                        | coarse_x as u16 % 4;
+                    let palette_idx = (attr as u16 >> shift) & 3;
+                    let final_idx = palette_idx << 3 + color_idx;
+                    let color = self.color_palette[final_idx as usize];
+                    let pixel = Pixel::new(color.r, color.g, color.b, 0xff);
+                    self.output[col+i+row*OUTPUT_W] = pixel;
+                }
+            }
+        }
+    }
 }
 
 impl Debug for Ppu {
@@ -228,7 +304,6 @@ impl Debug for Ppu {
 ///        |+- 1: Add 256 to the X scroll position
 ///        +-- 1: Add 240 to the Y scroll position
 /// ```
-
 #[derive(Default, Debug)]
 struct RegPPUCtrl {
     /// `N`: Bits 0-1
@@ -236,9 +311,9 @@ struct RegPPUCtrl {
     /// `I`: bit 2
     increment_mode: bool,
     /// `S`: bit 3
-    sprite_tile_select: bool,
+    sprite_table_select: bool,
     /// `B`: bit 4
-    bg_tile_select: bool,
+    bg_table_select: bool,
     /// `H`: bit 5
     sprite_height: bool,
     /// `P`: bit 6
@@ -258,8 +333,8 @@ impl From<u8> for RegPPUCtrl {
         Self {
             nametable_select: b & 0b_0000_0011,
             increment_mode: (b & 0b_0000_0100) != 0,
-            sprite_tile_select: (b & 0b_0000_1000) != 0,
-            bg_tile_select: (b & 0b_0001_0000) != 0,
+            sprite_table_select: (b & 0b_0000_1000) != 0,
+            bg_table_select: (b & 0b_0001_0000) != 0,
             sprite_height: (b & 0b_0010_0000) != 0,
             ppu_master_slave: (b & 0b_0100_0000) != 0,
             nmi_enable: (b & 0b_1000_0000) != 0,
