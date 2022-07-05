@@ -1,4 +1,4 @@
-mod bus;
+mod cpu_bus;
 mod console;
 mod constant;
 mod cpu;
@@ -7,7 +7,7 @@ mod mapper;
 mod ppu;
 mod palette;
 
-pub use self::bus::*;
+pub use self::cpu_bus::*;
 pub use self::console::*;
 pub use self::cpu::*;
 pub use self::cart::*;

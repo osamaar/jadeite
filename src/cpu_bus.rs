@@ -2,13 +2,13 @@ use std::{cell::RefCell, fmt::{Debug, Write}, rc::Rc};
 
 use crate::{Cart, Ppu};
 
-pub struct Bus <'a> {
+pub struct CpuBus <'a> {
     ram: Box<[u8]>,
     pub cart: Option<&'a mut Cart>,
     ppu: Rc<RefCell<Ppu>>,
 }
 
-impl <'a> Bus <'a> {
+impl <'a> CpuBus <'a> {
     pub fn new(ppu: Rc<RefCell<Ppu>>) -> Self {
         Self {
             ram: vec![0x0u8; 0x800].into_boxed_slice(),
@@ -112,7 +112,7 @@ impl <'a> Bus <'a> {
     }
 }
 
-impl <'a> Debug for Bus <'a> {
+impl <'a> Debug for CpuBus <'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Bus")
         .field("ram", &format!("RAM: {} bytes of memory", self.ram.len()))
