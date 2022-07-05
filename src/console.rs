@@ -1,11 +1,11 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
-use crate::{Bus, Cart, Cpu, Ppu};
+use crate::{CpuBus, Cart, Cpu, Ppu};
 
 #[derive(Debug)]
 pub struct Console<'a> {
     pub cpu: Cpu<'a>,
-    pub bus: Bus<'a>,
+    pub bus: CpuBus<'a>,
     pub ppu: Rc<RefCell<Ppu>>,
 }
 
@@ -14,7 +14,7 @@ impl<'a> Console<'a> {
         let cpu = Cpu::new();
         let ppu = RefCell::new(Ppu::new());
         let ppu = Rc::new(ppu);
-        let bus = Bus::new(ppu.clone());
+        let bus = CpuBus::new(ppu.clone());
 
         Self { cpu, ppu, bus }
     }

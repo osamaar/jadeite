@@ -1,10 +1,10 @@
 use jdasm_6502::{Operation, Mnemonic, AddrMode, Instruction};
-use crate::Bus;
+use crate::CpuBus;
 
 use super::{Cpu, InstructionTarget};
 
-type OpFn<'a> = fn(&mut Cpu<'a>, &mut Bus, InstructionTarget)->();
-type AddrFn<'a> = fn(&mut Cpu<'a>, &mut Bus, Instruction)->InstructionTarget;
+type OpFn<'a> = fn(&mut Cpu<'a>, &mut CpuBus, InstructionTarget)->();
+type AddrFn<'a> = fn(&mut Cpu<'a>, &mut CpuBus, Instruction)->InstructionTarget;
 
 pub(super) fn addr_handler<'a>(op: &Operation) -> AddrFn<'a> {
     match op.addr_mode {

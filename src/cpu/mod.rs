@@ -9,10 +9,10 @@ use std::num::Wrapping;
 
 use jdasm_6502::{disasm_one, ByteSource, Instruction, Operand};
 
-use crate::Bus;
+use crate::CpuBus;
 use self::fn_table::{ addr_handler, op_handler };
 
-impl ByteSource for Bus<'_> {
+impl ByteSource for CpuBus<'_> {
     fn read_byte(&self, offset: u16) -> Result<u8, ()> {
         Ok(self.read(offset))
     }
@@ -66,13 +66,13 @@ impl<'a> Cpu<'a> {
         self.debug_out = Some(Box::new(d));
     }
 
-    pub fn pc_advance(&mut self, bus: &mut Bus) -> u8 {
+    pub fn pc_advance(&mut self, bus: &mut CpuBus) -> u8 {
         let byte = bus.read(self.reg.PC);
         self.reg.PC += 1;
         byte
     }
 
-    pub fn step(&mut self, bus: &mut Bus) {
+    pub fn step(&mut self, bus: &mut CpuBus) {
         if self.nmi_triggered {
             self.nmi(bus);
             self.nmi_triggered = false;
@@ -87,7 +87,7 @@ impl<'a> Cpu<'a> {
         self.clock_count += self.cycles as usize;
     }
 
-    fn process_instruction(&mut self, bus: &mut Bus) {
+    fn process_instruction(&mut self, bus: &mut CpuBus) {
         // print!("{:06}| {:#06x}: ", self.ops, self.reg.PC);
         self.reg.P.unused = true;
         self.extra_cycles_branch = 0;
@@ -124,20 +124,20 @@ impl<'a> Cpu<'a> {
         self.ops += 1;
     }
     
-    pub fn next(&mut self, bus: &mut Bus) {
+    pub fn next(&mut self, bus: &mut CpuBus) {
         while self.cycles > 0 {
             self.step(bus);
         }
     }
     
-    pub fn reset(&mut self, bus: &mut Bus) {
+    pub fn reset(&mut self, bus: &mut CpuBus) {
         let pc_lo= bus.read(0xfffc) as u16;
         let pc_hi = bus.read(0xfffd) as u16;
         let pc = (pc_hi << 8) | pc_lo;
         self.reset_to(bus, pc);
     }
     
-    pub fn reset_to(&mut self, bus: &mut Bus, offset: u16) {
+    pub fn reset_to(&mut self, bus: &mut CpuBus, offset: u16) {
         self.cycles = 7;
         self.clock_count = self.cycles as usize;
         self.reg.P.interrupt = true;
@@ -152,19 +152,19 @@ impl<'a> Cpu<'a> {
         self.reg.S = 0xFD;
     }
 
-    fn push_stack(&mut self, bus: &mut Bus, value: u8) {
+    fn push_stack(&mut self, bus: &mut CpuBus, value: u8) {
         let addr = 0x0100 | self.reg.S as u16;
         bus.write(addr, value);
         self.reg.S -= 1;
     }
 
-    fn pop_stack(&mut self, bus: &mut Bus) -> u8 {
+    fn pop_stack(&mut self, bus: &mut CpuBus) -> u8 {
         self.reg.S += 1;
         let addr = 0x0100 | self.reg.S as u16;
         bus.read(addr)
     }
 
-    fn nmi(&mut self, bus: &mut Bus) {
+    fn nmi(&mut self, bus: &mut CpuBus) {
         // $FFFA $FFFB
         let pc: u16 = self.reg.PC as u16;
         self.push_stack(bus, pc.hi());
@@ -181,7 +181,7 @@ impl<'a> Cpu<'a> {
 
     /// Centralized op target access. All ops can use this to avoid switching
     /// addressing logic based on current instruction's addressing mode.
-    fn fetch(&mut self, bus: &mut Bus, target: InstructionTarget) -> u8 {
+    fn fetch(&mut self, bus: &mut CpuBus, target: InstructionTarget) -> u8 {
         match target {
             InstructionTarget::Null => unreachable!(),
             InstructionTarget::Accumulator => self.reg.A,
@@ -190,7 +190,7 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    fn store(&mut self, value: u8, bus: &mut Bus, target: InstructionTarget) {
+    fn store(&mut self, value: u8, bus: &mut CpuBus, target: InstructionTarget) {
         match target {
             InstructionTarget::Null => unreachable!(),
             InstructionTarget::Accumulator => self.reg.A = value,
@@ -200,7 +200,7 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    fn branch(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn branch(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let addr_target = match target {
             InstructionTarget::MemoryAddress(w) => w,
             _ => unreachable!()
@@ -221,11 +221,11 @@ impl<'a> Cpu<'a> {
     }
 
     // Addressing Modes
-    fn Accum(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Accum(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         InstructionTarget::Accumulator
     }
 
-    fn Imm(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Imm(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let value = match instr.operand {
             Operand::Byte(b) => b,
             _ => unreachable!(),
@@ -234,14 +234,14 @@ impl<'a> Cpu<'a> {
         InstructionTarget::Immediate(value)
     }
 
-    fn Absolute(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Absolute(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         match instr.operand {
             Operand::Word(w) => InstructionTarget::MemoryAddress(w),
             _ => unreachable!()
         }
     }
 
-    fn ZP(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn ZP(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         match instr.operand {
             Operand::Byte(b) => InstructionTarget::MemoryAddress(b as u16),
             _ => unreachable!()
@@ -249,7 +249,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indexed Zero Page [ZP, X]
-    fn IdxZPX(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IdxZPX(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let base = match instr.operand {
             Operand::Byte(b) => b as u16,
             _ => unreachable!()
@@ -261,7 +261,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indexed Zero Page [ZP, Y]
-    fn IdxZPY(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IdxZPY(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let base = match instr.operand {
             Operand::Byte(b) => b as u16,
             _ => unreachable!()
@@ -272,7 +272,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indexed Absolute [ABS, X]
-    fn IdxAbsX(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IdxAbsX(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let base = match instr.operand {
             Operand::Word(w) => w,
             _ => unreachable!()
@@ -286,7 +286,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indexed Absolute [ABS, Y]
-    fn IdxAbsY(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IdxAbsY(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let base = match instr.operand {
             Operand::Word(w) => w,
             _ => unreachable!()
@@ -299,11 +299,11 @@ impl<'a> Cpu<'a> {
         InstructionTarget::MemoryAddress(addr_target)
     }
 
-    fn Implied(&mut self, _bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Implied(&mut self, _bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         InstructionTarget::Null
     }
 
-    fn Relative(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Relative(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         // Casting from a smaller integer to a larger integer (e.g. u8 -> u32) will
         //     zero-extend if the source is unsigned
         //     sign-extend if the source is signed
@@ -320,7 +320,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indexed Indirect [(IND, X)]
-    fn IdxIndX(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IdxIndX(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let base = match instr.operand {
             Operand::Byte(b) => b as u16,
             _ => unreachable!()
@@ -334,7 +334,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Indirect Indexed [(IND), Y]
-    fn IndIdxY(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn IndIdxY(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let loc_zp = match instr.operand {
             Operand::Byte(b) => b as u16,
             _ => unreachable!()
@@ -352,7 +352,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Absolute Indirect [(IND, X)] [JMP (IND) Only]
-    fn Indirect(&mut self, bus: &mut Bus, instr: Instruction) -> InstructionTarget {
+    fn Indirect(&mut self, bus: &mut CpuBus, instr: Instruction) -> InstructionTarget {
         let loc = match instr.operand {
             Operand::Word(w) => w,
             _ => unreachable!()
@@ -370,13 +370,13 @@ impl<'a> Cpu<'a> {
     // Instructions
 
     // Illegal instruction
-    fn XXX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn XXX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         unimplemented!();
         // self.NOP(bus);
     }
 
     /// Add with Carry
-    fn ADC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn ADC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         // V  A M S  A^S  M^S    &
         // 0  0 0 0    0    0    0
         // 1  0 0 1    1    1    1
@@ -402,7 +402,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Logical AND
-    fn AND(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn AND(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = self.fetch(bus, target);
         self.reg.A = self.reg.A & m;
         self.reg.P.zero = self.reg.A == 0;
@@ -410,7 +410,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Shift Left one bit
-    fn ASL(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn ASL(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let operand = self.fetch(bus, target);
         self.reg.P.carry = (operand & 0x80) != 0;
         let operand = operand << 1;
@@ -420,28 +420,28 @@ impl<'a> Cpu<'a> {
     }
 
     /// Branch if Carry Clear
-    fn BCC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BCC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if !self.reg.P.carry {
             self.branch(bus, target);
         }
     }
 
     /// Branch if Carry Set
-    fn BCS(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BCS(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if self.reg.P.carry {
             self.branch(bus, target);
         }
     }
 
     /// Branch if Equal
-    fn BEQ(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BEQ(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if self.reg.P.zero {
             self.branch(bus, target);
         }
     }
 
     /// Bit Test
-    fn BIT(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BIT(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         // N = M(7), V = M(6), Z = A & M
         let m = self.fetch(bus, target);
         self.reg.P.negative = (m & 0x80) != 0;
@@ -451,28 +451,28 @@ impl<'a> Cpu<'a> {
     }
 
     /// Branch if Minus
-    fn BMI(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BMI(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if self.reg.P.negative {
             self.branch(bus, target);
         }
     }
 
     /// Branch if Not Equal
-    fn BNE(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BNE(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if !self.reg.P.zero {
             self.branch(bus, target);
         }
     }
 
     /// Branch if Positive
-    fn BPL(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BPL(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if !self.reg.P.negative {
             self.branch(bus, target);
         }
     }
 
     /// Force Interrupt
-    fn BRK(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BRK(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.brk = true;
         let lo = (self.reg.PC & 0xFF) as u8;
         let hi = ((self.reg.PC >> 8) & 0xFF) as u8;
@@ -485,41 +485,41 @@ impl<'a> Cpu<'a> {
     }
 
     /// Branch if Overflow Clear
-    fn BVC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BVC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if !self.reg.P.overflow {
             self.branch(bus, target);
         }
     }
 
     /// Branch if Overflow Set
-    fn BVS(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn BVS(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         if self.reg.P.overflow {
             self.branch(bus, target);
         }
     }
 
     /// Clear Carry Flag
-    fn CLC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CLC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.carry = false;
     }
 
     /// Clear Decimal Flag
-    fn CLD(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CLD(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.decimal = false;
     }
 
     /// Clear Interrupt Disable
-    fn CLI(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CLI(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.interrupt = false;
     }
 
     /// Clear Overflow Flag
-    fn CLV(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CLV(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.overflow = false;
     }
 
     /// Compare
-    fn CMP(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CMP(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let a = self.reg.A;
         let m = self.fetch(bus, target);
         let result = a.wrapping_sub(m);
@@ -528,7 +528,7 @@ impl<'a> Cpu<'a> {
         self.reg.P.negative = (result & 0x80) != 0;
     }
 
-    fn CPX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CPX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let x = self.reg.X;
         let m = self.fetch(bus, target);
         let result = x.wrapping_sub(m);
@@ -537,7 +537,7 @@ impl<'a> Cpu<'a> {
         self.reg.P.negative = (result & 0x80) != 0;
     }
 
-    fn CPY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn CPY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let y = self.reg.Y;
         let m = self.fetch(bus, target);
         let result = y.wrapping_sub(m);
@@ -547,7 +547,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Decrement Memory
-    fn DEC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn DEC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = self.fetch(bus, target).wrapping_sub(1);
         self.reg.P.zero = m == 0;
         self.reg.P.negative = (m & 0x80) != 0;
@@ -555,7 +555,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Decrement X Register
-    fn DEX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn DEX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let x = self.reg.X.wrapping_sub(1);
         self.reg.X = x;
         self.reg.P.zero = x == 0;
@@ -563,7 +563,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Decrement Y Register
-    fn DEY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn DEY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let y = self.reg.Y.wrapping_sub(1);
         self.reg.Y = y;
         self.reg.P.zero = y == 0;
@@ -571,7 +571,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Exclusive OR
-    fn EOR(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn EOR(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = self.fetch(bus, target);
         self.reg.A = self.reg.A ^ m;
         self.reg.P.zero = self.reg.A == 0;
@@ -579,7 +579,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Increment Memory
-    fn INC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn INC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = self.fetch(bus, target).wrapping_add(1);
         self.reg.P.zero = m == 0;
         self.reg.P.negative = (m & 0x80) != 0;
@@ -587,7 +587,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Increment X Register
-    fn INX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn INX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let x = self.reg.X.wrapping_add(1);
         self.reg.X = x;
         self.reg.P.zero = x == 0;
@@ -595,7 +595,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Increment Y Register
-    fn INY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn INY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let y = self.reg.Y.wrapping_add(1);
         self.reg.Y = y;
         self.reg.P.zero = y == 0;
@@ -603,7 +603,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Jump
-    fn JMP(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn JMP(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.PC = match target {
             InstructionTarget::MemoryAddress(w) => w,
             _ => unreachable!()
@@ -611,7 +611,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Jump to Subroutine
-    fn JSR(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn JSR(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         // Push PC (already advanced by Cpu::Absolute)
         let loc = self.reg.PC - 1;
         let lo = (loc & 0xff) as u8;
@@ -627,7 +627,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Load Accumulator
-    fn LDA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn LDA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let fetched = self.fetch(bus, target);
         self.reg.A = fetched;
         self.reg.P.zero = fetched == 0;
@@ -635,7 +635,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Load X Register
-    fn LDX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn LDX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let fetched = self.fetch(bus, target);
         self.reg.X = fetched;
         self.reg.P.zero = fetched == 0;
@@ -643,7 +643,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Load Y Register
-    fn LDY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn LDY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let fetched = self.fetch(bus, target);
         self.reg.Y = fetched;
         self.reg.P.zero = fetched == 0;
@@ -651,7 +651,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Logical Shift Right
-    fn LSR(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn LSR(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let operand = self.fetch(bus, target);
         self.reg.P.carry = (operand & 1) == 1;
         let operand = (operand >> 1) & 0x7F;
@@ -661,12 +661,12 @@ impl<'a> Cpu<'a> {
     }
 
     /// No Operation
-    fn NOP(&mut self, _bus: &mut Bus, target: InstructionTarget) {
+    fn NOP(&mut self, _bus: &mut CpuBus, target: InstructionTarget) {
 
     }
 
     /// Logical Inclusive OR
-    fn ORA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn ORA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = self.fetch(bus, target);
         self.reg.A = self.reg.A | m;
         self.reg.P.zero = self.reg.A == 0;
@@ -674,12 +674,12 @@ impl<'a> Cpu<'a> {
     }
 
     /// Push Accumulator
-    fn PHA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn PHA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.push_stack(bus, self.reg.A);
     }
 
     /// Push Processor Status
-    fn PHP(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn PHP(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let mut status = self.reg.P;
         status.brk = true;
         status.unused = true;
@@ -687,7 +687,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Pull Accumulator
-    fn PLA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn PLA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let byte = self.pop_stack(bus);
         self.reg.A = byte;
         self.reg.P.zero = byte == 0;
@@ -695,7 +695,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Pull Processor Status
-    fn PLP(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn PLP(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         // Ignore bit 4 and 5 of pulled value
         // https://wiki.nesdev.com/w/index.php?title=Status_flags#The_B_flag
         let old: u8 = u8::from(&self.reg.P) & 0b0011_0000;
@@ -704,7 +704,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Rotate Left
-    fn ROL(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn ROL(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let operand = self.fetch(bus, target);
         let old_carry = self.reg.P.carry as u8;
         self.reg.P.carry = (operand & 0x80) != 0;
@@ -715,7 +715,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Rotate Right
-    fn ROR(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn ROR(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let operand = self.fetch(bus, target);
         let old_carry = self.reg.P.carry as u8;
         self.reg.P.carry = (operand & 1) == 1;
@@ -727,7 +727,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Return from Interrupt
-    fn RTI(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn RTI(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P = self.pop_stack(bus).into();
         let lo = self.pop_stack(bus) as u16;
         let hi = self.pop_stack(bus) as u16;
@@ -735,14 +735,14 @@ impl<'a> Cpu<'a> {
     }
 
     /// Return from Subroutine
-    fn RTS(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn RTS(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let lo = self.pop_stack(bus) as u16;
         let hi = self.pop_stack(bus) as u16;
         self.reg.PC = ((hi << 8) | lo) + 1;
     }
 
     /// Subtract with Carry
-    fn SBC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn SBC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         let m = !self.fetch(bus, target);
         let a = self.reg.A;
         let carry_in = self.reg.P.carry as u16;
@@ -756,70 +756,70 @@ impl<'a> Cpu<'a> {
     }
 
     /// Set Carry Flag
-    fn SEC(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn SEC(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.carry = true;
     }
 
     /// Set Decimal Flag
-    fn SED(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn SED(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.decimal = true;
     }
 
     /// Set Interrupt Disable
-    fn SEI(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn SEI(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.P.interrupt = true;
     }
 
     /// Store Accumulator
-    fn STA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn STA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.store(self.reg.A, bus, target);
     }
 
     /// Store X Register
-    fn STX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn STX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.store(self.reg.X, bus, target);
     }
 
     /// Store Y Register
-    fn STY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn STY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.store(self.reg.Y, bus, target);
     }
 
     /// Transfer Accumulator to X
-    fn TAX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TAX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.X = self.reg.A;
         self.reg.P.zero = self.reg.X == 0;
         self.reg.P.negative = (self.reg.X & 0x80) != 0;
     }
 
     /// Transfer Accumulator to Y
-    fn TAY(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TAY(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.Y = self.reg.A;
         self.reg.P.zero = self.reg.Y == 0;
         self.reg.P.negative = (self.reg.Y & 0x80) != 0;
     }
 
     /// Transfer Stack Pointer to X
-    fn TSX(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TSX(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.X = self.reg.S;
         self.reg.P.zero = self.reg.X == 0;
         self.reg.P.negative = (self.reg.X & 0x80) != 0;
     }
 
     /// Transfer X to Accumulator
-    fn TXA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TXA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.A = self.reg.X;
         self.reg.P.zero = self.reg.A == 0;
         self.reg.P.negative = (self.reg.A & 0x80) != 0;
     }
 
     /// Transfer X to Stack Pointer
-    fn TXS(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TXS(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.S = self.reg.X;
     }
 
     /// Transfer Y to Accumulator
-    fn TYA(&mut self, bus: &mut Bus, target: InstructionTarget) {
+    fn TYA(&mut self, bus: &mut CpuBus, target: InstructionTarget) {
         self.reg.A = self.reg.Y;
         self.reg.P.zero = self.reg.A == 0;
         self.reg.P.negative = (self.reg.A & 0x80) != 0;
