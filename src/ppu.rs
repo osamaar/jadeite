@@ -231,28 +231,34 @@ impl Ppu {
                 // ||++++---------- R: Tile row
                 // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
                 // +--------------- 0: Pattern table is at $0000-$1FFF
-                let tile_sliver_lo = fine_y
+                let tile_sliver_lo = cart.ppu_read(
+                    fine_y
                     | 0 << 3
                     | tile_addr << 4
                     | pattern_table_half << 12
-                    | 0 << 13;
+                );
 
-                let tile_sliver_hi = fine_y
+                let tile_sliver_hi = cart.ppu_read(
+                    fine_y
                     | 1 << 3
                     | tile_addr << 4
                     | pattern_table_half << 12
-                    | 0 << 13;
+                );
+
+                // println!("hi|lo = {:08b}|{:08b}", tile_sliver_hi, tile_sliver_lo);
                 
                 let attr = cart.ppu_read(attr_addr);
 
                 for i in 0..8 {
-                    let bit_lo = (tile_sliver_lo >> i) & 1;
-                    let bit_hi = (tile_sliver_hi >> i) & 1;
+                    let bit_lo = (tile_sliver_lo >> (7-i)) & 1;
+                    let bit_hi = (tile_sliver_hi >> (7-i)) & 1;
                     let color_idx = (bit_hi << 1) & bit_lo;
-                    let shift = coarse_y%4 << 2
-                        | coarse_x as u16 % 4;
+                    let shift = (
+                        (coarse_y%4 & 0b10)
+                        | (coarse_x as u16 % & 0b10) >> 1
+                    ) << 1;
                     let palette_idx = (attr as u16 >> shift) & 3;
-                    let final_idx = palette_idx << 3 + color_idx;
+                    let final_idx = palette_idx << 2 + color_idx;
                     let color = self.color_palette[final_idx as usize];
                     let pixel = Pixel::new(color.r, color.g, color.b, 0xff);
                     self.output[col+i+row*OUTPUT_W] = pixel;
