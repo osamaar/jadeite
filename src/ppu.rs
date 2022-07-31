@@ -1,8 +1,8 @@
 #![allow(unused_variables, dead_code)]
 
-use std::fmt::Debug;
+use std::{fmt::Debug, borrow::Borrow};
 
-use crate::{palette::Palette, Cart};
+use crate::{palette::Palette, Cart, PpuBus};
 // #![allow(non_snake_case)]
 
 const OUTPUT_W: usize = 256;
@@ -31,7 +31,7 @@ pub struct Ppu {
     /// `$4014` Write
     oam_dma: u8,
 
-    vram: [u8; 2048],
+    //vram: [u8; 2048],
     color_palette: Palette,
     
     clock_count: usize,
@@ -57,7 +57,7 @@ impl Ppu {
             ppu_addr: PPUAddress::default(),
             ppu_data: 0,
             oam_dma: 0,
-            vram: [0; 2048],
+            // vram: [0; 2048],
             color_palette,
             clock_count: 0,
             scanline: 261,
@@ -67,12 +67,14 @@ impl Ppu {
         }
     }
         
-    pub fn step(&mut self, cart: &Cart) {
+    pub fn step(&mut self, ppu_bus: &PpuBus) {
+        // let cart = ppu_bus.cart.as_ref().unwrap();
+
         match self.scanline {
             241 => {
                 if self.scanline_cycle == 1 {
-                    // self.draw_debug(cart);
-                    self.draw_bg(cart);
+                    self.draw_debug(ppu_bus);
+                    //self.draw_bg(ppu_bus);
                     self.ppu_status.vblank = true;
                     self.nmi_signal = self.ppu_status.vblank && self.ppu_ctrl.nmi_enable;
                 }
@@ -111,7 +113,7 @@ impl Ppu {
             0x2000 => unimplemented!(),
             0x2001 => unimplemented!(),
             0x2002 => {
-                let result = (&self.ppu_status).into();
+                let result = self.ppu_status.as_ref().into();
                 self.ppu_status.vblank = false;
                 result
             },
@@ -125,29 +127,47 @@ impl Ppu {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
+        let addr = addr & 0xfff7;
+
         match addr {
+            // PPUCTRL
             0x2000 => self.ppu_ctrl = value.into(),
+
+            // PPUMASK
             0x2001 => self.ppu_mask = value.into(),
+
+            // PPUSTATUS
             0x2002 => {todo!()},
+
+            // OAMADDR
             0x2003 => {todo!()},
+
+            // OAMDATA
             0x2004 => {todo!()},
+
+            // PPUSCROLL
             0x2005 => self.ppu_scroll.store(value),
+
+            // PPUADDR
             0x2006 => self.ppu_addr.store(value),
+
+            // OAMDMA
             0x2007 => {
-                self.vram[self.ppu_addr.value as usize] = value;
+                // TODO
             },
+
             _ => unreachable!()
         }
 
     }
 
-    fn draw_debug(&mut self, cart: &Cart) {
+    fn draw_debug(&mut self, ppu_bus: &PpuBus) {
         let mut tile_data = [0; 64];
         for ty in 0..16 {
             for tx in 0..16 {
                 // left
                 for i in 0..16 {
-                    tile_data[i] = cart.ppu_read(0x2000 | ((ty * 16 + tx) * 16 + i) as u16);
+                    tile_data[i] = ppu_bus.read(((ty * 16 + tx) * 16 + i) as u16);
                 }
 
                 draw_tile(
@@ -160,8 +180,9 @@ impl Ppu {
 
                 // right
                 for i in 0..16 {
+                    let addr = (((ty * 16 + tx) * 16 + i) | 0x1000) as u16;
                     tile_data[i] =
-                        cart.ppu_read(0x2000 | (((ty * 16 + tx) * 16 + i) | 0x1000) as u16);
+                        ppu_bus.read(addr);
                 }
 
                 draw_tile(
@@ -187,7 +208,7 @@ impl Ppu {
 
     /// Read nametable byte, attribute table byte.
     /// Fetch pattern table byte low/hi.
-    fn draw_bg(&mut self, cart: &Cart) {
+    fn draw_bg(&mut self, ppu_bus: &PpuBus) {
         // let mut v = 0;
 
         for row in 0..OUTPUT_H {
@@ -209,12 +230,12 @@ impl Ppu {
                     | fine_y << 12;
 
                 // Read nametable byte.
-                let tile_addr = cart.ppu_read(
+                let tile_addr = ppu_bus.read(
                     0x2000 | (v & 0x0fff)
                 ) as u16;
 
                 // Fetch from attribute table.
-                let attr_addr = cart.ppu_read(
+                let attr_addr = ppu_bus.read(
                     0x23C0
                     | (v & 0x0C00)
                     | ((v >> 4) & 0x38)
@@ -231,14 +252,14 @@ impl Ppu {
                 // ||++++---------- R: Tile row
                 // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
                 // +--------------- 0: Pattern table is at $0000-$1FFF
-                let tile_sliver_lo = cart.ppu_read(
+                let tile_sliver_lo = ppu_bus.read(
                     fine_y
                     | 0 << 3
                     | tile_addr << 4
                     | pattern_table_half << 12
                 );
 
-                let tile_sliver_hi = cart.ppu_read(
+                let tile_sliver_hi = ppu_bus.read(
                     fine_y
                     | 1 << 3
                     | tile_addr << 4
@@ -247,7 +268,7 @@ impl Ppu {
 
                 // println!("hi|lo = {:08b}|{:08b}", tile_sliver_hi, tile_sliver_lo);
                 
-                let attr = cart.ppu_read(attr_addr);
+                let attr = ppu_bus.read(attr_addr);
 
                 for i in 0..8 {
                     let bit_lo = (tile_sliver_lo >> (7-i)) & 1;
@@ -450,6 +471,12 @@ impl From<&RegPPUStatus> for u8 {
             ((val.sprite0_hit   as u8) << 6) |
             ((val.vblank        as u8) << 7)
         }
+    }
+}
+
+impl AsRef<RegPPUStatus> for RegPPUStatus {
+    fn as_ref(&self) -> &RegPPUStatus {
+        &self
     }
 }
 

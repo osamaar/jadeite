@@ -31,7 +31,7 @@ impl Mapper for Mapper000 {
     }
 
     fn ppu_read(&self, cart: &CartData, addr: u16) -> u8 {
-        cart.chr_rom[(addr & 0x1fff) as usize]
+        cart.chr_rom[addr as usize]
     }
 
     fn ppu_write(&self, cart: &mut CartData, addr: u16, value: u8) {
