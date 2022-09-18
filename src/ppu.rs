@@ -1,15 +1,15 @@
 #![allow(unused_variables, dead_code)]
 
-use std::{fmt::Debug, borrow::Borrow};
+use std::{fmt::Debug, ptr};
 
-use crate::{palette::Palette, Cart, PpuBus};
+use crate::{palette::Palette, PpuBus};
 // #![allow(non_snake_case)]
 
 const OUTPUT_W: usize = 256;
 const OUTPUT_H: usize = 240;
 const OUTPUT_SIZE: usize = OUTPUT_W * OUTPUT_H;
 
-pub struct Ppu {
+pub struct Ppu<'a> {
     /// `$2000` Write
     ppu_ctrl: RegPPUCtrl,
     /// `$2001` Write
@@ -40,9 +40,12 @@ pub struct Ppu {
 
     pub nmi_signal: bool,
     pub output: Box<[Pixel]>,
+
+    ppu_bus: *mut PpuBus<'a>,
+    // vram_addr: u16,
 }
 
-impl Ppu {
+impl<'a> Ppu<'a> {
     pub fn new() -> Self {
         let color_palette = Palette::from_file(
             "resources/ntscpalette.pal"
@@ -64,7 +67,13 @@ impl Ppu {
             scanline_cycle: 0,
             nmi_signal: false,
             output: vec![Pixel::new(0x22, 0x22, 0x22, 0xff); OUTPUT_SIZE].into_boxed_slice(),
+            ppu_bus: ptr::null_mut(),
+            // vram_addr: 0,
         }
+    }
+
+    pub fn init(&mut self, ppu_bus: &mut PpuBus<'a>) {
+        self.ppu_bus = ppu_bus;
     }
         
     pub fn step(&mut self, ppu_bus: &PpuBus) {
@@ -73,8 +82,8 @@ impl Ppu {
         match self.scanline {
             241 => {
                 if self.scanline_cycle == 1 {
-                    self.draw_debug(ppu_bus);
-                    //self.draw_bg(ppu_bus);
+                    // self.draw_debug(ppu_bus);
+                    self.draw_bg(ppu_bus);
                     self.ppu_status.vblank = true;
                     self.nmi_signal = self.ppu_status.vblank && self.ppu_ctrl.nmi_enable;
                 }
@@ -111,7 +120,7 @@ impl Ppu {
     pub fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0x2000 => unimplemented!(),
-            0x2001 => unimplemented!(),
+            0x2001 => unreachable!(),
             0x2002 => {
                 let result = self.ppu_status.as_ref().into();
                 self.ppu_status.vblank = false;
@@ -149,12 +158,29 @@ impl Ppu {
             0x2005 => self.ppu_scroll.store(value),
 
             // PPUADDR
-            0x2006 => self.ppu_addr.store(value),
+            0x2006 => {
+                self.ppu_addr.store(value);
+                // self.vram_addr = self.ppu_addr.value;
+                // println!("PPU addr = {:#06x}", self.ppu_addr.value);
+            },
+
+            // PPUDATA
+            0x2007 => {
+                // let 
+                // ppu_bus
+                // println!("PPU write to addr: {:#06x}, value = {:#04x}", self.ppu_addr.value, value );
+                let ppu_bus = unsafe { &*self.ppu_bus };
+                ppu_bus.write(self.ppu_addr.value, value);
+
+                let incr = match self.ppu_ctrl.increment_mode {
+                    false => 1,
+                    true => 32,
+                };
+                self.ppu_addr.value += incr;
+            },
 
             // OAMDMA
-            0x2007 => {
-                // TODO
-            },
+            0x4014 => {todo!()},
 
             _ => unreachable!()
         }
@@ -230,8 +256,9 @@ impl Ppu {
                     | fine_y << 12;
 
                 // Read nametable byte.
+                let nametable_addr = 0x2000 | (v & 0x0fff);
                 let tile_addr = ppu_bus.read(
-                    0x2000 | (v & 0x0fff)
+                    nametable_addr
                 ) as u16;
 
                 // Fetch from attribute table.
@@ -251,7 +278,7 @@ impl Ppu {
                 // |||||| ++++----- C: Tile column
                 // ||++++---------- R: Tile row
                 // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
-                // +--------------- 0: Pattern table is at $0000-$1FFF
+                // +--------------- 0: Pattern table is at 000-$1FFF
                 let tile_sliver_lo = ppu_bus.read(
                     fine_y
                     | 0 << 3
@@ -267,21 +294,36 @@ impl Ppu {
                 );
 
                 // println!("hi|lo = {:08b}|{:08b}", tile_sliver_hi, tile_sliver_lo);
-                
+               
+                if tile_addr == 0 {
+                    continue;
+                }
+
                 let attr = ppu_bus.read(attr_addr);
+                let quad_x = (coarse_x/2) % 2;
+                let quad_y = (coarse_y/2) % 2;
+                let attr_palette_shift = ((quad_y << 1) & (quad_x)) * 2;
+                let palette_idx = (attr >> attr_palette_shift) & 0b11;
 
                 for i in 0..8 {
                     let bit_lo = (tile_sliver_lo >> (7-i)) & 1;
                     let bit_hi = (tile_sliver_hi >> (7-i)) & 1;
-                    let color_idx = (bit_hi << 1) & bit_lo;
-                    let shift = (
-                        (coarse_y%4 & 0b10)
-                        | (coarse_x as u16 % & 0b10) >> 1
-                    ) << 1;
-                    let palette_idx = (attr as u16 >> shift) & 3;
-                    let final_idx = palette_idx << 2 + color_idx;
-                    let color = self.color_palette[final_idx as usize];
+                    let color_idx = (bit_hi << 1) | bit_lo;
+
+                    // let shift = (
+                    //     (coarse_y%4 & 0b10)
+                    //     | (coarse_x as u16 % & 0b10) >> 1
+                    // ) << 1;
+                    // let palette_idx = (attr as u16 >> shift) & 3;
+                    // let final_idx = palette_idx << 2 + color_idx;
+
+                    // let final_idx = (palette_idx << 2) & color_idx;
+                    // let color = self.color_palette[final_idx as usize];
+                    // let pixel = Pixel::new(color.r, color.g, color.b, 0xff);
+
+                    let color = self.color_palette[color_idx as usize];
                     let pixel = Pixel::new(color.r, color.g, color.b, 0xff);
+
                     self.output[col+i+row*OUTPUT_W] = pixel;
                 }
             }
@@ -289,7 +331,7 @@ impl Ppu {
     }
 }
 
-impl Debug for Ppu {
+impl Debug for Ppu<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ppu")
             .field("ppu_ctrl", &self.ppu_ctrl)
@@ -504,20 +546,12 @@ impl PPUScroll {
 #[derive(Debug, Default)]
 struct PPUAddress{
     pub value: u16,
-    counter: u8,
 }
 
 impl PPUAddress {
     pub fn store(&mut self, b: u8) {
-        self.counter = (self.counter + 1) % 2;
-
-        match self.counter {
-            0 => self.value |= (b as u16) << 8,
-            1 => self.value |= b as u16,
-            _ => unreachable!()
-        };
-
-        self.counter += 1;
+        self.value <<= 8;
+        self.value |= b as u16;
     }
 }
 
