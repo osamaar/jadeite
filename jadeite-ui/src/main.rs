@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 mod debug;
 mod window;
 mod config;
@@ -20,8 +22,10 @@ fn main() -> Result<(), ()> {
     let mut cart = Cart::read_file("resources/nestest.nes").map_err(|_| ())?;
     // let mut cart = Cart::read_file("resources/ex.nes").map_err(|_| ())?;
     let mut nes = Console::new();
+    nes.init();
     nes.insert_cart(&mut cart);
     // nes.reset_to(0xc000);
+    // nes.reset_to(0xc004);
     nes.reset();
 
     let mut f = File::open("resources/nestest.log").unwrap();
@@ -61,7 +65,7 @@ fn main() -> Result<(), ()> {
 
         // Draw
         win.clear();
-        let ppuout = &nes.ppu.borrow().output;
+        let ppuout = &nes.ppu.output;
         let buf = win.buffer();
         let w = buf.width() as usize;
         let win_pixels = win.buffer().pixels_mut();

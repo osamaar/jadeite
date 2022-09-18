@@ -43,10 +43,11 @@ pub struct Cpu<'a> {
 
     pub clock_count: usize,
     debug_out: Option<Box<&'a mut dyn Write>>,
+    cpu_bus: *mut CpuBus<'a>,
 }
 
 impl<'a> Cpu<'a> {
-    pub fn new() -> Self {
+    pub fn new(cpu_bus: *mut CpuBus<'a>) -> Self {
         Self {
             reg: Default::default(),
             // opcode_table: opcode::create_opcode_table(),
@@ -59,6 +60,7 @@ impl<'a> Cpu<'a> {
             extra_cycles_branch: 0,
             extra_cycles_page_bounds: 0,
             nmi_triggered: false,
+            cpu_bus
         }
     }
 
@@ -81,10 +83,9 @@ impl<'a> Cpu<'a> {
 
             if self.cycles == 0 {
                 self.process_instruction(bus);
+                self.clock_count += self.cycles as usize;
             }
         }
-
-        self.clock_count += self.cycles as usize;
     }
 
     fn process_instruction(&mut self, bus: &mut CpuBus) {
@@ -155,6 +156,7 @@ impl<'a> Cpu<'a> {
     fn push_stack(&mut self, bus: &mut CpuBus, value: u8) {
         let addr = 0x0100 | self.reg.S as u16;
         bus.write(addr, value);
+        // println!("push @{:#0x} {:#0x}", addr, bus.read(addr));
         self.reg.S -= 1;
     }
 

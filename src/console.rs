@@ -1,46 +1,45 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
-
+use std::fmt::Display;
 use crate::{CpuBus, Cart, Cpu, Ppu, PpuBus};
 
+/// Encapsulates the functinonality of the whole system.
+/// 
+/// Note: This is a self-referential struct; Do not move after creation.
+/// 
+/// TODO: Investigate `Pin`ing this struct.
 #[derive(Debug)]
 pub struct Console<'a> {
-    pub cart: Option<Rc<RefCell<&'a mut Cart>>>,
-    pub cpu: Cpu<'a>,
-    pub ppu: Rc<RefCell<Ppu>>,
-    pub wram: Rc<RefCell<Box<[u8]>>>,
-    pub vram: Rc<RefCell<Box<[u8]>>>,
+    pub cart: Option<&'a mut Cart>,
+    pub wram: Box<[u8]>,
+    pub vram: Box<[u8]>,
     pub cpu_bus: CpuBus<'a>,
     pub ppu_bus: PpuBus<'a>,
+    pub cpu: Cpu<'a>,
+    pub ppu: Ppu<'a>,
 }
 
 impl<'a> Console<'a> {
     pub fn new() -> Self {
         let cart = None;
-        let cpu = Cpu::new();
-        let ppu = RefCell::new(Ppu::new());
-        let ppu = Rc::new(ppu);
-
         let wram = vec![0x0u8; 0x800].into_boxed_slice();
-        let wram = RefCell::new(wram);
-        let wram = Rc::new(wram);
-
         let vram = vec![0x0u8; 0x800].into_boxed_slice();
-        let vram = RefCell::new(vram);
-        let vram = Rc::new(vram);
 
-        let cpu_bus = CpuBus::new(wram.clone(), ppu.clone());
-        let ppu_bus = PpuBus::new(vram.clone());
+        let ppu_bus = PpuBus::new();
+        let ppu = Ppu::new();
+
+        let mut cpu_bus = CpuBus::new();
+        let cpu = Cpu::new(&mut cpu_bus);
 
         Self { cart, cpu, ppu, wram, vram, cpu_bus, ppu_bus }
     }
 
+    pub fn init(self: &mut Self) {
+        self.cpu_bus.init(&mut self.wram, &mut self.cart, &mut self.ppu);
+        self.ppu_bus.init(&mut self.vram, &mut self.cart);
+        self.ppu.init(&mut self.ppu_bus);
+    }
+
     pub fn insert_cart(&mut self, cart: &'a mut Cart) {
-        let cart = RefCell::new(cart);
-        let cart = Rc::new(cart);
         self.cart = Some(cart);
-        let cart = self.cart.as_ref().unwrap();
-        self.cpu_bus.attach_cart(cart.clone());
-        self.ppu_bus.attach_cart(cart.clone());
     }
 
     pub fn reset(&mut self) {
@@ -61,12 +60,11 @@ impl<'a> Console<'a> {
     }
 
     fn ppu_step(&mut self) {
-        let mut ppu = (*self.ppu).borrow_mut();
-        ppu.step(&self.ppu_bus);
+        self.ppu.step(&self.ppu_bus);
 
-        if ppu.nmi_signal {
+        if self.ppu.nmi_signal {
             self.cpu.nmi_triggered = true;
-            ppu.nmi_signal = false;
+            self.ppu.nmi_signal = false;
         }
     }
 

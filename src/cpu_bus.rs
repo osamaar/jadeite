@@ -1,35 +1,58 @@
-use std::{cell::RefCell, fmt::{Debug, Write}, rc::Rc};
-
+use std::{fmt::{Debug, Write}, ptr};
 use crate::{Cart, Ppu};
 
 pub struct CpuBus<'a> {
-    ram: Rc<RefCell<Box<[u8]>>>,
-    cart: Option<Rc<RefCell<&'a mut Cart>>>,
-    ppu: Rc<RefCell<Ppu>>,
+    ram: *mut Box<[u8]>,
+    cart: *mut Option<&'a mut Cart>,
+    ppu: *mut Ppu<'a>,
 }
 
 impl<'a> CpuBus<'a> {
-    pub fn new(ram: Rc<RefCell<Box<[u8]>>>, ppu: Rc<RefCell<Ppu>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            ram,
-            cart: None,
-            ppu,
+            ram: ptr::null_mut(),
+            cart: ptr::null_mut(),
+            ppu: ptr::null_mut(),
         }
     }
 
-    pub fn attach_cart(&mut self, cart: Rc<RefCell<&'a mut Cart>>) {
-        self.cart = Some(cart);
+    pub fn init(&mut self, wram: &mut Box<[u8]>, cart: &mut Option<&'a mut Cart>, ppu: &mut Ppu<'a>) {
+        self.ram = wram;
+        self.cart = cart;
+        self.ppu = ppu;
+    }
+
+    fn ram_ref(&self) -> &Box<[u8]> {
+        unsafe { &*self.ram }
+    }
+
+    fn ram_mut(&self) -> &mut Box<[u8]> {
+        unsafe { &mut *self.ram }
+    }
+
+    fn cart_ref(&self) -> &Cart {
+        unsafe{ &*self.cart }.as_ref().unwrap()
+    }
+
+    fn cart_mut(&self) -> &mut Cart {
+        unsafe{ &mut *self.cart }.as_mut().unwrap()
+    }
+
+    fn ppu_mut(&self) -> &mut Ppu<'a> {
+        unsafe { &mut *self.ppu }
     }
 
     pub fn read(&self, addr: u16) -> u8 {
-        let ram = self.ram.as_ref().borrow();
-        let cart = self.cart.as_ref().unwrap().borrow();
-        let mut ppu = self.ppu.borrow_mut();
+        let ram = self.ram_ref();
+        let cart = self.cart_ref();
+        let ppu = self.ppu_mut();
 
         let value = match addr {
             // RAM & Mirros
             0x0000..=0x01fff => {
-                ram[(addr&0x07ff) as usize]
+                // ram[(addr&0x07ff) as usize]
+                let ret = ram[(addr&0x07ff) as usize];
+                ret
             },
 
             // PPU Registers & Mirrors
@@ -59,9 +82,10 @@ impl<'a> CpuBus<'a> {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        let mut ram = self.ram.as_ref().borrow_mut();
-        let mut cart = self.cart.as_ref().unwrap().borrow_mut();
-        let mut ppu = self.ppu.borrow_mut();
+        let ram = self.ram_mut();
+        let cart = self.cart_mut();
+        let ppu = self.ppu_mut();
+
         // println!("+ WRITE: @{:04X} = {:02X}", addr, value);
 
         match addr {
@@ -82,10 +106,11 @@ impl<'a> CpuBus<'a> {
                 cart.cpu_write(addr, value);
             },
 
-            // PPU Registers
+            // APU Registers
             0x4000..=0x4017 => {
                 // Does nothing.
                 // TODO: Implement audio.
+                // todo!();
             }
 
             _ => unimplemented!()
@@ -118,7 +143,7 @@ impl<'a> CpuBus<'a> {
 
 impl Debug for CpuBus<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ram = self.ram.as_ref().borrow();
+        let ram = unsafe { &*self.ram };
 
         f.debug_struct("Bus")
         .field("ram", &format!("RAM: {} bytes of memory", ram.len()))
