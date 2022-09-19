@@ -85,7 +85,7 @@ fn main() -> Result<(), ()> {
         update_overlay(&mut overlay, &text_renderer, &nes);
         overlay.blit_to_buffer_with_alpha(win_pixels);
 
-        win.draw();
+        win.draw(2);
 
         if win.is_done() {
             break Ok(());
