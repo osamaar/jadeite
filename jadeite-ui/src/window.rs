@@ -81,13 +81,14 @@ impl JWindow {
         self.screen_buf.clear();
     }
 
-    pub fn draw(&mut self) {
+    pub fn draw(&mut self, scale: i32) {
         self.screen_buf.blit_to_texture(&mut self.screen_tex);
-
         let q = self.screen_tex.query();
-        let bb = (0i32, 0i32, q.width, q.height);
-        self.canvas.copy(&self.screen_tex, None, Some(bb.into()));
-
+        let src = (0i32, 0i32, q.width, q.height);
+        let dst = (
+            src.0*scale, src.1*scale, src.2*(scale as u32), src.3*(scale as u32)
+        );
+        self.canvas.copy(&self.screen_tex, Some(src.into()), Some(dst.into()));
         self.canvas.present();
     }
 
